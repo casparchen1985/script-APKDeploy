@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  deploy_plan.xml — 批次部署計畫
+  每個 <task> 代表一次 deploy_apk.sh 呼叫（單一 app × 一或多個機種）
+  <apk> 填入 toBeUpload/ 下的完整路徑（腳本同層，zip 解開後即存在）
+  <devices> 內每個 <device> 填入 devices.conf 中定義的機種名稱（小寫）
+
+  範例（僅供格式參考，非有效設定）:
+
+  <task>
+    <app>KeyMappingManager</app>
+    <apk>~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk</apk>
+    <author>Bob</author>
+    <message>Update KeyMappingManager to v1.2.3: fix key remap crash</message>
+    <devices>
+      <device>rk26s</device>
+      <device>rk26u</device>
+      <device>rs36s</device>
+    </devices>
+  </task>
+
+  請在下方新增實際部署任務：
+-->
+<deploy-plan>
+
+</deploy-plan>
