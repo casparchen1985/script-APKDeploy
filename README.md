@@ -58,7 +58,7 @@ DEVICE_rk96v="~/rk96v/LA.QSSI.15.0"
 APK_SUBDIR="vendor/cipherlab"
 
 # 機種專屬 APK 目錄覆寫（有需要才取消註解）
-# DEVICE_rk25_APK_SUBDIR="prebuilts/apk"
+# DEVICE_rk25_APK_SUBDIR="android/vendor/cipherlab/prebuilt/rk25"
 
 # APK 暫存目錄：所有 APK 統一放在此平坦目錄，不分子目錄
 # 部署成功的 APK 自動刪除；失敗或未使用的保留，方便重試
@@ -310,10 +310,10 @@ AUTHOR_David="David.Wu|David.Wu@cipherlab.com.tw"
 
 ```bash
 # 修改前
-AUTHOR_Caspar="Caspar.Chen|Caspar.Chen@cipherlab.com.tw"
+AUTHOR_Bob="bob.lin|bob.lin@gmail.com"
 
 # 修改後（例如 email 改版）
-AUTHOR_Caspar="Caspar.Chen|caspar.chen@cipherlab.com.tw"
+AUTHOR_Bob="Bob.Lin|Bob.Lin@cipherlab.com.tw"
 ```
 
 **移除已離職 RD：**
@@ -334,13 +334,13 @@ AUTHOR_Caspar="Caspar.Chen|caspar.chen@cipherlab.com.tw"
 
 ```bash
 # 在 devices.conf 末尾加入
-DEVICE_rk97v="~/rk97v/LA.QSSI.16.0"
+DEVICE_rk97="~/rk97/LA.QSSI.17.0"
 ```
 
 新增後即可在 `--device` 或 `deploy_plan.xml` 中直接使用：
 
 ```bash
-./deploy_apk.sh --device rk97v ...
+./deploy_apk.sh --device rk97 ...
 ```
 
 **修改某機種的 repo 路徑（例如 repo 搬遷）：**
@@ -350,7 +350,7 @@ DEVICE_rk97v="~/rk97v/LA.QSSI.16.0"
 DEVICE_rk26s="~/rk26s/LA.QSSI.12.0"
 
 # 修改後（repo 搬遷）
-DEVICE_rk26s="~/rk26s/LA.QSSI.13.0"
+DEVICE_rk26s="~/repos/rk26s/LA.QSSI.12.0"
 ```
 
 **停用某機種（暫時不部署）：**
@@ -370,7 +370,7 @@ DEVICE_rk26s="~/rk26s/LA.QSSI.13.0"
 APK_SUBDIR="vendor/cipherlab"
 
 # 機種專屬覆寫（僅該機種生效，其他機種仍使用全域預設）
-DEVICE_rk25_APK_SUBDIR="prebuilts/apk"
+DEVICE_rk25_APK_SUBDIR="android/vendor/cipherlab/prebuilt/rk25"
 ```
 
 優先順序：`DEVICE_<NAME>_APK_SUBDIR`（有設定）> `APK_SUBDIR`（全域預設）。未設定機種專屬值時自動 fallback 到全域預設，無需每個機種都填寫。
