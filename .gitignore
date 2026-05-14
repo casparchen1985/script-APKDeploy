@@ -1,0 +1,48 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Generated files
+bin/
+gen/
+out/
+
+*.iml
+
+.gradle/
+/build
+
+*.log
+
+# Android Studio Navigation editor temp files
+.navigation/
+
+# Android Studio captures folder
+captures/
+
+/.idea/
+/.idea/gradle.xml
+/.idea/caches
+/.idea/workspace.xml
+/.idea/libraries
+/.idea/modules.xml
+/.idea/dictionaries
+/.idea/inspectionProfiles
+/.idea/jarRepositories.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+key.properties
+
+# Android Profiling
+*.hprof
+
+# Others
+*.plist
