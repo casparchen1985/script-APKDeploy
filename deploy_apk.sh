@@ -137,7 +137,6 @@ done
 [[ ${#VALID_DEVICES[@]} -eq 0 ]] && die "沒有有效機種可部署"
 
 # ---------- 摘要 ----------
-echo ""
 echo -e "${BOLD}====== APK Deploy Summary ======${RESET}"
 echo -e "  APP       : ${CYAN}${APP_NAME}${RESET}"
 echo -e "  APK       : ${CYAN}${APK_FILENAME}${RESET}"
@@ -184,7 +183,7 @@ deploy_device() {
   local APK_DEST_DIR="${MODULE_DIR}"
   local MK_PATH="${MODULE_DIR}/Android.mk"
 
-  log "\n${CYAN}${SEP}${RESET}"
+  log "${CYAN}${SEP}${RESET}"
   log "${CYAN}  ▶  [${dev}] 開始部署${RESET}"
   log "${CYAN}${SEP}${RESET}"
 
@@ -230,7 +229,7 @@ deploy_device() {
 
   log "${GREEN}${SEP}${RESET}"
   log "${GREEN}  ✔  [${dev}] 部署成功${RESET}"
-  log "${GREEN}${SEP}${RESET}\n"
+  log "${GREEN}${SEP}${RESET}\n\n"
 }
 
 # ---------- 驗證函式 ----------

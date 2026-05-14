@@ -118,11 +118,11 @@ while IFS=$'\t' read -r app apk author message devices_str; do
        --device  "${device_arr[@]}" \
        ${DRY_RUN}; then
     PASS=$(( PASS + 1 ))
-    echo -e "${GREEN}Task ${TOTAL} [${app}] 完成${RESET}"
+    echo -e "${GREEN}Task ${TOTAL} [${app}] 完成${RESET}\n"
   else
     FAIL=$(( FAIL + 1 ))
     FAILED_TASKS+=("${app}")
-    echo -e "${RED}Task ${TOTAL} [${app}] 失敗${RESET}"
+    echo -e "${RED}Task ${TOTAL} [${app}] 失敗${RESET}\n"
   fi
   echo ""
 done <<< "${TASK_LIST}"
