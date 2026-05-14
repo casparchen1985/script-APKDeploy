@@ -7,7 +7,7 @@
 ## 目錄結構
 
 ```
-apk_deploy/                  ← zip 解開後的根目錄，cd 進來直接執行腳本
+apk_deploy/                  ← git clone 後的根目錄，cd 進來直接執行腳本
 ├── deploy_apk.sh            # 核心部署腳本（單一 app × 多機種）
 ├── batch_deploy.sh          # 批次包裝腳本（讀取 deploy_plan.xml）
 ├── verify_deploy.sh         # 獨立驗證腳本（不執行部署，僅檢查結果）
@@ -34,6 +34,13 @@ apk_deploy/                  ← zip 解開後的根目錄，cd 進來直接執�
 ---
 
 ## 初始設定
+
+### 0. 下載腳本
+
+登入 upload server 後於適當位置複製 script
+```bash
+git clone <REPO_URL> apk_deploy
+```
 
 ### 1. 機種設定 `config/devices.conf`
 
