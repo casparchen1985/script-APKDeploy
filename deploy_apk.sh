@@ -188,7 +188,7 @@ deploy_device() {
   log "${CYAN}${SEP}${RESET}"
 
   # 1. git checkout master + clean + pull
-  info "[${dev}] git checkout master && git clean && git pull"
+  info "[${dev}] git checkout master && git clean -fd && git pull"
   run "cd '${REPO}' && git checkout master && git clean -fd && git pull origin master"
   ok "[${dev}] repo 已同步到最新 master"
 

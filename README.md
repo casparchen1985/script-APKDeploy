@@ -1,6 +1,6 @@
 # APK Deploy Toolkit
 
-將單一 APK 自動部署到一或多個裝置 repo，並同步更新 `Android.mk`，完成後自動驗證部署結果。
+將 APK 自動部署到一或多個裝置 repo，並同步更新 `Android.mk`，完成後自動驗證部署結果。
 
 ---
 
@@ -39,7 +39,7 @@ apk_deploy/                  ← git clone 後的根目錄，cd 進來直接執�
 
 登入 upload server 後於適當位置複製 script
 ```bash
-git clone <REPO_URL> apk_deploy
+git clone git@gitlab.cipherlab.com.tw:app-dev/android/automation/scriptapkdeploy.git apk_deploy
 ```
 
 ### 1. 機種設定 `config/devices.conf`
