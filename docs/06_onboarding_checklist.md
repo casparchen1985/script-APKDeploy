@@ -83,7 +83,7 @@
     --device <name> --dry-run
   ```
 - [ ] dry-run 通過（無 ERROR、Summary 顯示新機種）
-- [ ] 拿掉 `--dry-run` 實際跑一次，確認驗證 4 項全 ✓
+- [ ] 拿掉 `--dry-run` 實際跑一次，確認驗證 5 項全 ✓
 
 ### B.6 文件同步
 - [ ] 更新 `docs/presentation/03_quickref_cheatsheet.md` 的機種清單表

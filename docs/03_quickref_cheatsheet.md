@@ -121,7 +121,7 @@ vim deploy_plan.xml
   --device <d1> <d2> <d3>
 ```
 
-驗證四項：APK MD5 / Android.mk / commit author / commit message。
+驗證五項：APK MD5 / Android.mk LOCAL_SRC_FILES / commit author name / commit author email / commit message。
 **Staging APK 必須仍在 `toBeUploaded/`** 作為 MD5 比對基準。
 
 ---

@@ -54,7 +54,7 @@ layout: cover
 - 多機種 **平行邏輯、序列執行**（任一機種失敗不影響其他）
 - Android.mk 自動 `sed` 替換 `LOCAL_SRC_FILES`  檔名資訊
 - Git commit 自動帶入 `--author` 與標準化 message
-- **部署後自動驗證**：APK MD5 / Android.mk 內容 / commit author / commit message
+- **部署後自動驗證**（5 項）：APK MD5 / Android.mk LOCAL_SRC_FILES / commit author name / commit author email / commit message
 - 全成功 → APK 自動清除；任一失敗 → 保留 staging APK，重跑即可
 
 > 範疇外：**不**負責 build APK、**不**改 repo 的 git config、**不**做 code review
@@ -91,8 +91,9 @@ apk_deploy/
        ↓
 [4] git add → git commit --author=... → git push
        ↓
-[5] 自動驗證（可 --no-verify 略過）
-       MD5 / Android.mk / commit author / commit message
+[5] 自動驗證 5 項（可 --no-verify 略過）
+       APK MD5 / Android.mk LOCAL_SRC_FILES /
+       commit author name / commit author email / commit message
 ```
 
 任何步驟失敗 → 該機種標記為失敗，**不影響其他機種繼續部署**
@@ -149,6 +150,7 @@ cd ~/apk_deploy
   APK       : KeyMappingManager_v1.2.3.apk
   版號識別  : 有版號 → 保留舊版共存
   Author    : Caspar.Chen <Caspar.Chen@cipherlab.com.tw>
+  Message   : SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3
   Devices   : rk26s rs36s rk95u
   Dry-run   : true
 ================================
@@ -204,7 +206,7 @@ cd ~/apk_deploy
   --device  rk26s rs36s rk95u
 ```
 
-驗證四項：APK MD5 / Android.mk 內容 / commit author / commit message  
+驗證五項：APK MD5 / Android.mk LOCAL_SRC_FILES / commit author name / commit author email / commit message  
 任一項目不符即顯示 `✗` 與差異。
 
 ---
