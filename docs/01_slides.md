@@ -71,7 +71,7 @@ apk_deploy/
 ├── config/
 │   ├── devices.conf     # 機種 → repo 路徑
 │   └── authors.conf     # RD → git author 資訊
-├── toBeUpload/          # APK staging 目錄
+├── toBeUploaded/        # APK staging 目錄
 ├── logs/                # 每次執行的時間戳記 log
 └── deploy_plan.xml      # 批次計畫（template 已提供）
 ```
@@ -123,14 +123,14 @@ apk_deploy/
 ```bash
 # 1) RD 本機把 APK 丟到 server
 scp KeyMappingManager_v1.2.3.apk \
-    app_dev@192.168.8.17:~/apk_deploy/toBeUpload/
+    app_dev@192.168.8.17:~/apk_deploy/toBeUploaded/
 
 # 2) ssh 進 server 執行（先 --dry-run 確認）
 ssh app_dev@192.168.8.17
 cd ~/apk_deploy
 ./deploy_apk.sh \
   --app     KeyMappingManager \
-  --apk     ~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk \
+  --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
   --author  Caspar \
   --message "Update KeyMappingManager to v1.2.3: fix key remap crash" \
   --device  rk26s rs36s rk95u \
@@ -171,7 +171,7 @@ cd ~/apk_deploy
 <deploy-plan>
   <task>
     <app>KeyMappingManager</app>
-    <apk>~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk</apk>
+    <apk>~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk</apk>
     <author>Caspar</author>
     <message>Update KMM to v1.2.3: fix key remap crash</message>
     <devices>
@@ -198,7 +198,7 @@ cd ~/apk_deploy
 ```bash
 ./verify_deploy.sh \
   --app     KeyMappingManager \
-  --apk     ~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk \
+  --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
   --author  Caspar \
   --message "Update KeyMappingManager to v1.2.3: fix key remap crash" \
   --device  rk26s rs36s rk95u

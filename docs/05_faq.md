@@ -181,7 +181,7 @@ vendor/cipherlab/key_mapping_mgr/   ← module 目錄
 **延伸**：
 - Build 失敗不會誤觸 deploy。
 - RD 可在 deploy 前人工確認 APK 內容（如版號、簽章）。
-- 若要整合，建議 build 完將 APK 放到 `toBeUpload/` 並通知 RD，由 RD 主動跑 deploy。
+- 若要整合，建議 build 完將 APK 放到 `toBeUploaded/` 並通知 RD，由 RD 主動跑 deploy。
 
 ---
 

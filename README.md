@@ -12,7 +12,7 @@ apk_deploy/                  ← git clone 後的根目錄，cd 進來直接執�
 ├── batch_deploy.sh          # 批次包裝腳本（讀取 deploy_plan.xml）
 ├── verify_deploy.sh         # 獨立驗證腳本（不執行部署，僅檢查結果）
 ├── deploy_plan.xml          # 批次部署計畫範例
-├── toBeUpload/              # APK 放這裡，部署成功後自動刪除
+├── toBeUploaded/            # APK 放這裡，部署成功後自動刪除
 │   └── .gitkeep
 ├── config/
 │   ├── devices.conf         # 機種名稱 → repo 路徑
@@ -29,7 +29,7 @@ apk_deploy/                  ← git clone 後的根目錄，cd 進來直接執�
 |------|------|
 | 執行環境 | Upload Server（Ubuntu，IP `192.168.8.17`，帳號 `app_dev`）上直接執行 |
 | 必要工具 | `git`、`bash 4.0+`、`md5sum`、`sed`、`python3`（批次部署用） |
-| RD 操作 | 將 APK 以 `scp` 上傳至 server 的 `toBeUpload/`，再 ssh 進 server 執行腳本 |
+| RD 操作 | 將 APK 以 `scp` 上傳至 server 的 `toBeUploaded/`，再 ssh 進 server 執行腳本 |
 
 ---
 
@@ -69,7 +69,7 @@ APK_SUBDIR="vendor/cipherlab"
 
 # APK 暫存目錄：所有 APK 統一放在此平坦目錄，不分子目錄
 # 部署成功的 APK 自動刪除；失敗或未使用的保留，方便重試
-APK_STAGING_DIR=""  # 留空 = 自動使用 <SCRIPT_DIR>/toBeUpload/
+APK_STAGING_DIR=""  # 留空 = 自動使用 <SCRIPT_DIR>/toBeUploaded/
 ```
 
 ### 2. Author 設定 `config/authors.conf`
@@ -105,17 +105,17 @@ chmod +x deploy_apk.sh batch_deploy.sh verify_deploy.sh
 
 ### 直接部署（最常用）
 
-在 upload server 上執行。RD 須先將 APK 上傳至腳本同層的 `toBeUpload/`，所有不同 app 的 APK 統一放在這個平坦目錄下，不需分子目錄。部署成功後該 APK 自動刪除；任一機種失敗則保留供重試，重新執行相同指令即可。
+在 upload server 上執行。RD 須先將 APK 上傳至腳本同層的 `toBeUploaded/`，所有不同 app 的 APK 統一放在這個平坦目錄下，不需分子目錄。部署成功後該 APK 自動刪除；任一機種失敗則保留供重試，重新執行相同指令即可。
 
 ```bash
-# 1. 先將 APK 上傳到 server 的 toBeUpload/（RD 從自己電腦執行，所有 app 統一放這裡）
-scp KeyMappingManager_v1.2.3.apk app_dev@192.168.8.17:~/apk_deploy/toBeUpload/
+# 1. 先將 APK 上傳到 server 的 toBeUploaded/（RD 從自己電腦執行，所有 app 統一放這裡）
+scp KeyMappingManager_v1.2.3.apk app_dev@192.168.8.17:~/apk_deploy/toBeUploaded/
 
 # 2. ssh 進 server，執行部署腳本
 ssh app_dev@192.168.8.17
 ./deploy_apk.sh \
   --app     KeyMappingManager \
-  --apk     ~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk \
+  --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
   --author  Bob \
   --message "Update KeyMappingManager to v1.2.3: fix key remap crash" \
   --device  rk26s rs36s rk95u \
@@ -158,7 +158,7 @@ ssh app_dev@192.168.8.17
 
   <task>
     <app>KeyMappingManager</app>
-    <apk>~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk</apk>
+    <apk>~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk</apk>
     <author>Bob</author>
     <message>Update KeyMappingManager to v1.2.3: fix key remap crash</message>
     <devices>
@@ -170,7 +170,7 @@ ssh app_dev@192.168.8.17
 
   <task>
     <app>ScanManager</app>
-    <apk>~/apk_deploy/toBeUpload/ScanManager_v3.0.1.apk</apk>
+    <apk>~/apk_deploy/toBeUploaded/ScanManager_v3.0.1.apk</apk>
     <author>Bob</author>
     <message>Bump ScanManager v3.0.1: improve decode speed</message>
     <devices>
@@ -188,12 +188,12 @@ ssh app_dev@192.168.8.17
 
 ### 獨立驗證（不部署）
 
-部署完成後若需要人工複查，使用 `verify_deploy.sh`（staging APK 需仍在 `toBeUpload/` 中，用於 MD5 比對基準）：
+部署完成後若需要人工複查，使用 `verify_deploy.sh`（staging APK 需仍在 `toBeUploaded/` 中，用於 MD5 比對基準）：
 
 ```bash
 ./verify_deploy.sh \
   --app     KeyMappingManager \
-  --apk     ~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk \
+  --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
   --author  Bob \
   --message "Update KeyMappingManager to v1.2.3: fix key remap crash" \
   --device  rk26s rs36s rk95u
@@ -211,7 +211,7 @@ ssh app_dev@192.168.8.17
     git pull origin master
          ↓
 [2] 複製 APK 至 repo（版號策略，見下節）
-    cp <SCRIPT_DIR>/toBeUpload/<apk> → <repo>/vendor/cipherlab/<APP_NAME>/
+    cp <SCRIPT_DIR>/toBeUploaded/<apk> → <repo>/vendor/cipherlab/<APP_NAME>/
          ↓
 [3] 更新 Android.mk
     sed 替換 LOCAL_SRC_FILES := *.apk → 新 APK 檔名

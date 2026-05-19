@@ -7,7 +7,7 @@
 # 用法:
 #   ./verify_deploy.sh \
 #     --app     KeyMappingManager \
-#     --apk     ~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk \
+#     --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
 #     --author  Bob \
 #     --message "Update KMM to v1.2.3: fix scan lag" \
 #     --device  rk26s rs36s rk95u
@@ -26,9 +26,9 @@ CONFIG_DIR="${SCRIPT_DIR}/config"
 source "${CONFIG_DIR}/devices.conf"
 source "${CONFIG_DIR}/authors.conf"
 
-# APK_STAGING_DIR 固定為腳本同層的 toBeUpload/（devices.conf 可覆寫）
+# APK_STAGING_DIR 固定為腳本同層的 toBeUploaded/（devices.conf 可覆寫）
 if [[ -z "${APK_STAGING_DIR}" ]]; then
-  APK_STAGING_DIR="${SCRIPT_DIR}/toBeUpload"
+  APK_STAGING_DIR="${SCRIPT_DIR}/toBeUploaded"
 else
   APK_STAGING_DIR="${APK_STAGING_DIR/#\~/$HOME}"
 fi

@@ -8,7 +8,7 @@
 # 用法:
 #   ./deploy_apk.sh \
 #     --app     KeyMappingManager \
-#     --apk     ~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk \
+#     --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
 #     --author  Bob \
 #     --message "Update KMM to v1.2.3: fix scan lag" \
 #     --device  rk26s rs36s rk95u \
@@ -27,7 +27,7 @@
 #   - 檔名含版號識別 (例: _v1.2.3 / _1.2.3 / _20250513) → 保留舊版，新版共存
 #   - 檔名無版號識別 → 同名覆蓋
 #
-# APK 放入腳本同層的 toBeUpload/ 即可；部署成功後自動刪除，失敗或未使用的保留供重試。
+# APK 放入腳本同層的 toBeUploaded/ 即可；部署成功後自動刪除，失敗或未使用的保留供重試。
 # =============================================================================
 
 set -euo pipefail
@@ -99,9 +99,9 @@ APK_PATH="${APK_PATH/#\~/$HOME}"
 source "${DEVICES_CONF}"
 source "${AUTHORS_CONF}"
 
-# APK_STAGING_DIR 固定為腳本同層的 toBeUpload/（devices.conf 可覆寫）
+# APK_STAGING_DIR 固定為腳本同層的 toBeUploaded/（devices.conf 可覆寫）
 if [[ -z "${APK_STAGING_DIR}" ]]; then
-  APK_STAGING_DIR="${SCRIPT_DIR}/toBeUpload"
+  APK_STAGING_DIR="${SCRIPT_DIR}/toBeUploaded"
 else
   APK_STAGING_DIR="${APK_STAGING_DIR/#\~/$HOME}"
 fi
@@ -321,7 +321,7 @@ if [[ ${#FAILED[@]} -eq 0 ]]; then
   fi
 else
   warn "有機種部署失敗，staging APK 保留供重試: ${APK_FILENAME}"
-  warn "重試時直接重新執行相同指令即可，APK 仍在 ${SCRIPT_DIR}/toBeUpload/"
+  warn "重試時直接重新執行相同指令即可，APK 仍在 ${SCRIPT_DIR}/toBeUploaded/"
 fi
 
 # ---------- 最終結果 ----------

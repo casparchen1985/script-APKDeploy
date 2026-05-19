@@ -11,7 +11,7 @@
 #   <deploy-plan>
 #     <task>
 #       <app>KeyMappingManager</app>
-#       <apk>~/apk_deploy/toBeUpload/KeyMappingManager_v1.2.3.apk</apk>
+#       <apk>~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk</apk>
 #       <author>Bob</author>
 #       <message>Update KMM to v1.2.3: fix key remap crash</message>
 #       <devices>

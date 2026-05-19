@@ -24,11 +24,11 @@
 - [ ] 若沒有 → 走 **Checklist C（新增 RD）**
 
 ### A.4 第一次 dry-run（不會動到任何 repo）
-- [ ] 準備一支測試 APK 放到 `~/apk_deploy/toBeUpload/`
+- [ ] 準備一支測試 APK 放到 `~/apk_deploy/toBeUploaded/`
 - [ ] 跑：
   ```bash
   ./deploy_apk.sh --app <測試 app> \
-    --apk ~/apk_deploy/toBeUpload/<file>.apk \
+    --apk ~/apk_deploy/toBeUploaded/<file>.apk \
     --author <YourKey> \
     --message "test message" \
     --device rk26s \
@@ -134,14 +134,14 @@
 
 每次要 push APK 時，快速跑一次：
 
-- [ ] APK 已 scp 到 server 的 `~/apk_deploy/toBeUpload/`
+- [ ] APK 已 scp 到 server 的 `~/apk_deploy/toBeUploaded/`
 - [ ] APK 檔名含版號（除非刻意要覆蓋同名）
 - [ ] commit message 已想好（描述變更、bug 編號、版號）
 - [ ] 目標機種清單已確認（不要漏、也不要多）
 - [ ] **第一次先 `--dry-run`**
 - [ ] dry-run 通過 → 拿掉 `--dry-run` 正式跑
 - [ ] 看到 `Deploy Result` 顯示 `失敗: 0`
-- [ ] Staging APK 已自動清除（`ls toBeUpload/` 確認）
+- [ ] Staging APK 已自動清除（`ls toBeUploaded/` 確認）
 - [ ] 留下 log 檔路徑（如需後續 review）
 
 ---

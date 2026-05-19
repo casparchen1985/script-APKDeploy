@@ -10,7 +10,7 @@
 |---|---|
 | Upload server | `app_dev@192.168.8.17` |
 | 腳本位置 | `~/apk_deploy/` |
-| Staging 目錄 | `~/apk_deploy/toBeUpload/` |
+| Staging 目錄 | `~/apk_deploy/toBeUploaded/` |
 | Repo 位置 | `git@gitlab.cipherlab.com.tw:app-dev/android/automation/scriptapkdeploy.git` |
 
 ---
@@ -19,17 +19,17 @@
 
 ```bash
 # (本機) 1. 上傳 APK
-scp <App>_vX.Y.Z.apk app_dev@192.168.8.17:~/apk_deploy/toBeUpload/
+scp <App>_vX.Y.Z.apk app_dev@192.168.8.17:~/apk_deploy/toBeUploaded/
 
 # (server) 2. 先 dry-run
 ssh app_dev@192.168.8.17
 cd ~/apk_deploy
-./deploy_apk.sh --app <App> --apk ~/apk_deploy/toBeUpload/<App>_vX.Y.Z.apk \
+./deploy_apk.sh --app <App> --apk ~/apk_deploy/toBeUploaded/<App>_vX.Y.Z.apk \
                 --author <Key> --message "<commit msg>" \
                 --device <d1> <d2> <d3> --dry-run
 
 # (server) 3. 沒問題拿掉 --dry-run，正式跑
-./deploy_apk.sh --app <App> --apk ~/apk_deploy/toBeUpload/<App>_vX.Y.Z.apk \
+./deploy_apk.sh --app <App> --apk ~/apk_deploy/toBeUploaded/<App>_vX.Y.Z.apk \
                 --author <Key> --message "<commit msg>" \
                 --device <d1> <d2> <d3>
 ```
@@ -41,7 +41,7 @@ cd ~/apk_deploy
 | 參數 | 必填 | 範例 | 說明 |
 |---|---|---|---|
 | `--app` | ✓ | `KeyMappingManager` | repo 內 module 目錄名稱（大小寫敏感） |
-| `--apk` | ✓ | `~/apk_deploy/toBeUpload/KMM_v1.2.3.apk` | staging APK 完整路徑 |
+| `--apk` | ✓ | `~/apk_deploy/toBeUploaded/KMM_v1.2.3.apk` | staging APK 完整路徑 |
 | `--author` | ✓ | `Caspar` | `authors.conf` 的 key |
 | `--message` | ✓ | `"Update KMM v1.2.3: fix ..."` | git commit message |
 | `--device` | ✓ | `rk26s rs36s rk95u` | 一或多個機種，空格分隔 |
@@ -116,13 +116,13 @@ vim deploy_plan.xml
 
 ```bash
 ./verify_deploy.sh \
-  --app <App> --apk ~/apk_deploy/toBeUpload/<App>_vX.Y.Z.apk \
+  --app <App> --apk ~/apk_deploy/toBeUploaded/<App>_vX.Y.Z.apk \
   --author <Key> --message "<原本 commit msg>" \
   --device <d1> <d2> <d3>
 ```
 
 驗證四項：APK MD5 / Android.mk / commit author / commit message。
-**Staging APK 必須仍在 `toBeUpload/`** 作為 MD5 比對基準。
+**Staging APK 必須仍在 `toBeUploaded/`** 作為 MD5 比對基準。
 
 ---
 
@@ -130,7 +130,7 @@ vim deploy_plan.xml
 
 | 錯誤訊息 | 原因 | 解法 |
 |---|---|---|
-| `找不到 APK 檔案` | path 拼錯 / staging 已被清 | 確認 `ls toBeUpload/` |
+| `找不到 APK 檔案` | path 拼錯 / staging 已被清 | 確認 `ls toBeUploaded/` |
 | `找不到 Android.mk` | `--app` 與 repo 目錄名不符（大小寫） | 對齊 `vendor/cipherlab/<dir>` 名稱 |
 | `Android.mk 更新失敗` | `.mk` 缺 `LOCAL_SRC_FILES` 行 | 手動補上後重跑 |
 | `APK MD5 不符` | scp 傳輸中斷 | 重新 scp + 重跑 |
