@@ -117,7 +117,7 @@ ssh app_dev@192.168.8.17
   --app     KeyMappingManager \
   --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
   --author  Bob \
-  --message "Update KeyMappingManager to v1.2.3: fix key remap crash" \
+  --message "SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3" \
   --device  rk26s rs36s rk95u \
   --dry-run
 ```
@@ -129,7 +129,7 @@ ssh app_dev@192.168.8.17
 | `--app` | ✓ | APP 名稱，對應 repo 內的目錄名稱（用來定位 `Android.mk`） |
 | `--apk` | ✓ | staging 目錄上的 APK 路徑 |
 | `--author` | ✓ | `authors.conf` 中的 key，例如 `Bob`、`Caspar` |
-| `--message` | ✓ | git commit message（完整字串，以引號包覆） |
+| `--message` | ✓ | git commit message（完整字串，以引號包覆）。標準格式：`<JIRA-ID> : [Cipherlab] Update <App> v<Version>`，例如 `SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3` |
 | `--device` | ✓ | 一或多個機種名稱（空格分隔），必須是 `devices.conf` 中定義的名稱 |
 | `--dry-run` | — | 模擬執行，印出所有步驟但不實際複製檔案或 git push |
 | `--no-verify` | — | 跳過部署後的自動驗證步驟 |
@@ -160,7 +160,7 @@ ssh app_dev@192.168.8.17
     <app>KeyMappingManager</app>
     <apk>~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk</apk>
     <author>Bob</author>
-    <message>Update KeyMappingManager to v1.2.3: fix key remap crash</message>
+    <message>SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3</message>
     <devices>
       <device>rk26s</device>
       <device>rk26u</device>
@@ -172,7 +172,7 @@ ssh app_dev@192.168.8.17
     <app>ScanManager</app>
     <apk>~/apk_deploy/toBeUploaded/ScanManager_v3.0.1.apk</apk>
     <author>Bob</author>
-    <message>Bump ScanManager v3.0.1: improve decode speed</message>
+    <message>SW_CLUTY-397 : [Cipherlab] Update ScanManager v3.0.1</message>
     <devices>
       <device>rs38t</device>
       <device>rs38v</device>
@@ -182,7 +182,7 @@ ssh app_dev@192.168.8.17
 </deploy-plan>
 ```
 
-> XML 使用 `<!-- -->` 撰寫註解。`<message>` 內容可包含冒號、斜線等特殊字元，無需額外跳脫。若內容含 `<`、`>` 或 `&` 則需改用 CDATA：`<message><![CDATA[fix a > b logic]]></message>`。
+> XML 使用 `<!-- -->` 撰寫註解。`<message>` 內容可包含冒號、斜線等特殊字元，無需額外跳脫。團隊標準格式 `<JIRA-ID> : [Cipherlab] Update <App> v<Version>` 通常不會出現 `<`/`>`/`&`；若邊界情況需要包含這些字元，改用 CDATA：`<message><![CDATA[fix a > b logic]]></message>`。
 
 ---
 
@@ -195,7 +195,7 @@ ssh app_dev@192.168.8.17
   --app     KeyMappingManager \
   --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
   --author  Bob \
-  --message "Update KeyMappingManager to v1.2.3: fix key remap crash" \
+  --message "SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3" \
   --device  rk26s rs36s rk95u
 ```
 
@@ -295,7 +295,7 @@ LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
   ✓ Author name  : Bob.Lin
   ✓ Author email : Bob.Lin@cipherlab.com.tw
 --- 驗證 commit message ---
-  ✓ Commit message: Update KeyMappingManager to v1.2.3: fix key remap crash
+  ✓ Commit message: SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3
   → commit hash: [a3f9c12]
 
 --- 驗證結果摘要 [rk26s] ---

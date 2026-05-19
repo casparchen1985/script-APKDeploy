@@ -13,7 +13,7 @@
 #       <app>KeyMappingManager</app>
 #       <apk>~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk</apk>
 #       <author>Bob</author>
-#       <message>Update KMM to v1.2.3: fix key remap crash</message>
+#       <message>SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3</message>
 #       <devices>
 #         <device>rk26s</device>
 #         <device>rs36s</device>

@@ -257,6 +257,8 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 <message><![CDATA[Fix a > b logic & nullptr bug]]></message>
 ```
 
+> 採用團隊標準格式 `<JIRA-ID> : [Cipherlab] Update <App> v<Version>` 時通常不會出現 `<`/`>`/`&`，多數情況下不需要 CDATA。此 Q 留作邊界處理參考。
+
 ---
 
 ### Q21. `git pull` 衝突的話腳本怎麼處理？

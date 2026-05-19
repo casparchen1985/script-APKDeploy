@@ -10,7 +10,7 @@
 #     --app     KeyMappingManager \
 #     --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
 #     --author  Bob \
-#     --message "Update KMM to v1.2.3: fix scan lag" \
+#     --message "SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3" \
 #     --device  rk26s rs36s rk95u \
 #     --dry-run
 #

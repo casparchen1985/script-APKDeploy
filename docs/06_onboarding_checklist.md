@@ -30,7 +30,7 @@
   ./deploy_apk.sh --app <測試 app> \
     --apk ~/apk_deploy/toBeUploaded/<file>.apk \
     --author <YourKey> \
-    --message "test message" \
+    --message "<JIRA-ID> : [Cipherlab] Update <App> v<Version>" \
     --device rk26s \
     --dry-run
   ```
@@ -79,7 +79,7 @@
 - [ ] 用一支已有版號的測試 APK 跑：
   ```bash
   ./deploy_apk.sh --app <app> --apk <staging-apk> \
-    --author <YourKey> --message "Onboard device <name>" \
+    --author <YourKey> --message "<JIRA-ID> : [Cipherlab] Update <App> v<Version>" \
     --device <name> --dry-run
   ```
 - [ ] dry-run 通過（無 ERROR、Summary 顯示新機種）

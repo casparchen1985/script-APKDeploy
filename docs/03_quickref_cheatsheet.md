@@ -25,12 +25,12 @@ scp <App>_vX.Y.Z.apk app_dev@192.168.8.17:~/apk_deploy/toBeUploaded/
 ssh app_dev@192.168.8.17
 cd ~/apk_deploy
 ./deploy_apk.sh --app <App> --apk ~/apk_deploy/toBeUploaded/<App>_vX.Y.Z.apk \
-                --author <Key> --message "<commit msg>" \
+                --author <Key> --message "<JIRA-ID> : [Cipherlab] Update <App> v<Version>" \
                 --device <d1> <d2> <d3> --dry-run
 
 # (server) 3. 沒問題拿掉 --dry-run，正式跑
 ./deploy_apk.sh --app <App> --apk ~/apk_deploy/toBeUploaded/<App>_vX.Y.Z.apk \
-                --author <Key> --message "<commit msg>" \
+                --author <Key> --message "<JIRA-ID> : [Cipherlab] Update <App> v<Version>" \
                 --device <d1> <d2> <d3>
 ```
 
@@ -43,7 +43,7 @@ cd ~/apk_deploy
 | `--app` | ✓ | `KeyMappingManager` | repo 內 module 目錄名稱（大小寫敏感） |
 | `--apk` | ✓ | `~/apk_deploy/toBeUploaded/KMM_v1.2.3.apk` | staging APK 完整路徑 |
 | `--author` | ✓ | `Caspar` | `authors.conf` 的 key |
-| `--message` | ✓ | `"Update KMM v1.2.3: fix ..."` | git commit message |
+| `--message` | ✓ | `"SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3"` | git commit message（標準格式） |
 | `--device` | ✓ | `rk26s rs36s rk95u` | 一或多個機種，空格分隔 |
 | `--dry-run` | — | — | 印步驟不執行，**強烈建議第一次先跑** |
 | `--no-verify` | — | — | 跳過自動驗證（不建議） |
@@ -117,7 +117,7 @@ vim deploy_plan.xml
 ```bash
 ./verify_deploy.sh \
   --app <App> --apk ~/apk_deploy/toBeUploaded/<App>_vX.Y.Z.apk \
-  --author <Key> --message "<原本 commit msg>" \
+  --author <Key> --message "<JIRA-ID> : [Cipherlab] Update <App> v<Version>" \
   --device <d1> <d2> <d3>
 ```
 

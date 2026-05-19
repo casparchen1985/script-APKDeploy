@@ -132,7 +132,7 @@ cd ~/apk_deploy
   --app     KeyMappingManager \
   --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
   --author  Caspar \
-  --message "Update KeyMappingManager to v1.2.3: fix key remap crash" \
+  --message "SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3" \
   --device  rk26s rs36s rk95u \
   --dry-run
 ```
@@ -173,7 +173,7 @@ cd ~/apk_deploy
     <app>KeyMappingManager</app>
     <apk>~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk</apk>
     <author>Caspar</author>
-    <message>Update KMM to v1.2.3: fix key remap crash</message>
+    <message>SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3</message>
     <devices>
       <device>rk26s</device><device>rk26u</device><device>rs36s</device>
     </devices>
@@ -200,7 +200,7 @@ cd ~/apk_deploy
   --app     KeyMappingManager \
   --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
   --author  Caspar \
-  --message "Update KeyMappingManager to v1.2.3: fix key remap crash" \
+  --message "SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3" \
   --device  rk26s rs36s rk95u
 ```
 
