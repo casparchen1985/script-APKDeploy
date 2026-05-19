@@ -276,7 +276,15 @@ LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
 ────────────────────────────────────────
 ```
 
-**驗證輸出：**
+**Android.mk 更新後接續印出 LOCAL_SRC_FILES 行內容：**
+
+```
+[14:30:22] OK    [rk26s] Android.mk 更新完成
+  └─ /home/app_dev/rk26s/LA.QSSI.12.0/vendor/cipherlab/KeyMappingManager/Android.mk
+     LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
+```
+
+**驗證輸出（含結果摘要）：**
 
 ```
 --- 驗證 APK ---
@@ -289,10 +297,17 @@ LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
 --- 驗證 commit message ---
   ✓ Commit message: Update KeyMappingManager to v1.2.3: fix key remap crash
   → commit hash: [a3f9c12]
-[rk26s] 驗證通過 ✓
+
+--- 驗證結果摘要 [rk26s] ---
+  ✓ PASS    APK MD5
+  ✓ PASS    Android.mk LOCAL_SRC_FILES
+  ✓ PASS    Commit Author Name
+  ✓ PASS    Commit Author Email
+  ✓ PASS    Commit Message
+[14:30:25] OK    [rk26s] 驗證全部通過 ✓
 ```
 
-任一項目不符，該機種標記為失敗，最終 exit code 為 1。
+任一項目不符，該項在摘要中標 `✗ FAIL`，該機種標記為失敗，最終 exit code 為 1。
 
 ---
 

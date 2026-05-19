@@ -47,7 +47,12 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 SEP='────────────────────────────────────────'
 
-log()  { local msg="[$(date '+%H:%M:%S')] $*"; echo -e "${msg}" | tee -a "${LOG_FILE}"; }
+# log: 螢幕顯示帶顏色，log 檔濾掉 ANSI 色碼，兩者都加 [MM-DD HH:MM:SS] 時間戳
+log() {
+  local msg="[$(date '+%m-%d %H:%M:%S')] $*"
+  echo -e "${msg}"
+  echo -e "${msg}" | sed 's/\x1b\[[0-9;]*m//g' >> "${LOG_FILE}"
+}
 info() { log "${CYAN}INFO${RESET}  $*"; }
 ok()   { log "${GREEN}OK${RESET}    $*"; }
 warn() { log "${YELLOW}WARN${RESET}  $*"; }
@@ -207,11 +212,20 @@ deploy_device() {
     [[ -f "${MK_PATH}" ]] || die "找不到 Android.mk: ${MK_PATH}"
     sed -i -E "s|^(LOCAL_SRC_FILES[[:space:]]*:=[[:space:]]*).*\.apk|\1${APK_FILENAME}|" "${MK_PATH}"
     grep -q "${APK_FILENAME}" "${MK_PATH}" || die "Android.mk 更新失敗，請確認 LOCAL_SRC_FILES 行是否存在"
-    echo "Android.mk 已更新為 ${APK_FILENAME}"
+    log "Android.mk 已更新為 ${APK_FILENAME}"
   else
     info "[DRY-RUN] sed 更新 ${MK_PATH} → LOCAL_SRC_FILES := ${APK_FILENAME}"
   fi
   ok "[${dev}] Android.mk 更新完成"
+  # 接續印出 .mk 內 LOCAL_SRC_FILES 行的實際內容（dry-run 顯示預期值）
+  if ! $DRY_RUN; then
+    local MK_LINE
+    MK_LINE=$(grep -E '^LOCAL_SRC_FILES[[:space:]]*:=' "${MK_PATH}" | head -1)
+    log "  └─ ${MK_PATH}"
+    log "     ${MK_LINE}"
+  else
+    log "  └─ (dry-run 預期) LOCAL_SRC_FILES := ${APK_FILENAME}"
+  fi
 
   # 4. git add + commit + push
   # 使用 --author 直接帶入 author 資訊，不修改 repo 的 git config
@@ -237,33 +251,41 @@ verify_device() {
   local dev="$1" repo="$2" apk_dir="$3" mk_path="$4"
   info "[${dev}] 驗證部署結果..."
   local ERRORS=0
+  local R_APK R_MK R_NAME R_EMAIL R_MSG
+  local PASS_TAG="${GREEN}✓ PASS${RESET}"
+  local FAIL_TAG="${RED}✗ FAIL${RESET}"
 
-  echo "--- 驗證 APK ---"
+  log "--- 驗證 APK ---"
   local APK_DEPLOYED="${apk_dir}/${APK_FILENAME}"
   if [[ -f "${APK_DEPLOYED}" ]]; then
     local STAGING_MD5 DEPLOYED_MD5
     STAGING_MD5=$(md5sum "${APK_PATH}"     | awk '{print $1}')
     DEPLOYED_MD5=$(md5sum "${APK_DEPLOYED}" | awk '{print $1}')
     if [[ "${STAGING_MD5}" == "${DEPLOYED_MD5}" ]]; then
-      echo "  ✓ APK MD5 驗證通過: ${DEPLOYED_MD5}"
+      log "  ✓ APK MD5 驗證通過: ${DEPLOYED_MD5}"
+      R_APK="${PASS_TAG}"
     else
-      echo "  ✗ APK MD5 不符! staging=${STAGING_MD5} deployed=${DEPLOYED_MD5}"
+      log "  ✗ APK MD5 不符! staging=${STAGING_MD5} deployed=${DEPLOYED_MD5}"
+      R_APK="${FAIL_TAG}"
       ERRORS=$(( ERRORS + 1 ))
     fi
   else
-    echo "  ✗ 找不到已部署的 APK: ${APK_DEPLOYED}"
+    log "  ✗ 找不到已部署的 APK: ${APK_DEPLOYED}"
+    R_APK="${FAIL_TAG}"
     ERRORS=$(( ERRORS + 1 ))
   fi
 
-  echo "--- 驗證 Android.mk ---"
+  log "--- 驗證 Android.mk ---"
   if grep -q "${APK_FILENAME}" "${mk_path}" 2>/dev/null; then
-    echo "  ✓ Android.mk 已更新為 ${APK_FILENAME}"
+    log "  ✓ Android.mk 已更新為 ${APK_FILENAME}"
+    R_MK="${PASS_TAG}"
   else
-    echo "  ✗ Android.mk 未包含 ${APK_FILENAME}"
+    log "  ✗ Android.mk 未包含 ${APK_FILENAME}"
+    R_MK="${FAIL_TAG}"
     ERRORS=$(( ERRORS + 1 ))
   fi
 
-  echo "--- 驗證 commit author ---"
+  log "--- 驗證 commit author ---"
   local C_NAME C_EMAIL C_SUBJECT C_HASH
   C_NAME=$(    git -C "${repo}" log -1 --pretty=format:"%an")
   C_EMAIL=$(   git -C "${repo}" log -1 --pretty=format:"%ae")
@@ -271,30 +293,46 @@ verify_device() {
   C_HASH=$(    git -C "${repo}" log -1 --pretty=format:"%h")
 
   if [[ "${C_NAME}" == "${GIT_AUTHOR_NAME}" ]]; then
-    echo "  ✓ Author name  : ${C_NAME}"
+    log "  ✓ Author name  : ${C_NAME}"
+    R_NAME="${PASS_TAG}"
   else
-    echo "  ✗ Author name 不符! expected='${GIT_AUTHOR_NAME}' got='${C_NAME}'"
+    log "  ✗ Author name 不符! expected='${GIT_AUTHOR_NAME}' got='${C_NAME}'"
+    R_NAME="${FAIL_TAG}"
     ERRORS=$(( ERRORS + 1 ))
   fi
 
   if [[ "${C_EMAIL}" == "${GIT_AUTHOR_EMAIL}" ]]; then
-    echo "  ✓ Author email : ${C_EMAIL}"
+    log "  ✓ Author email : ${C_EMAIL}"
+    R_EMAIL="${PASS_TAG}"
   else
-    echo "  ✗ Author email 不符! expected='${GIT_AUTHOR_EMAIL}' got='${C_EMAIL}'"
+    log "  ✗ Author email 不符! expected='${GIT_AUTHOR_EMAIL}' got='${C_EMAIL}'"
+    R_EMAIL="${FAIL_TAG}"
     ERRORS=$(( ERRORS + 1 ))
   fi
 
-  echo "--- 驗證 commit message ---"
+  log "--- 驗證 commit message ---"
   if [[ "${C_SUBJECT}" == "${COMMIT_MSG}" ]]; then
-    echo "  ✓ Commit message: ${C_SUBJECT}"
+    log "  ✓ Commit message: ${C_SUBJECT}"
+    R_MSG="${PASS_TAG}"
   else
-    echo "  ✗ Commit message 不符!"
-    echo "    expected : ${COMMIT_MSG}"
-    echo "    got      : ${C_SUBJECT}"
+    log "  ✗ Commit message 不符!"
+    log "    expected : ${COMMIT_MSG}"
+    log "    got      : ${C_SUBJECT}"
+    R_MSG="${FAIL_TAG}"
     ERRORS=$(( ERRORS + 1 ))
   fi
 
-  echo "  → commit hash: [${C_HASH}]"
+  log "  → commit hash: [${C_HASH}]"
+
+  # ---------- 驗證結果摘要 ----------
+  log ""
+  log "${BOLD}--- 驗證結果摘要 [${dev}] ---${RESET}"
+  log "  ${R_APK}    APK MD5"
+  log "  ${R_MK}    Android.mk LOCAL_SRC_FILES"
+  log "  ${R_NAME}    Commit Author Name"
+  log "  ${R_EMAIL}    Commit Author Email"
+  log "  ${R_MSG}    Commit Message"
+
   [[ ${ERRORS} -eq 0 ]] || { err "[${dev}] 驗證發現 ${ERRORS} 個問題"; return 1; }
   ok "[${dev}] 驗證全部通過 ✓"
 }

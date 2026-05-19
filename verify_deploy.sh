@@ -86,6 +86,9 @@ echo ""
 
 PASS=0; FAIL=0; FAILED=()
 
+PASS_TAG="${GREEN}✓ PASS${RESET}"
+FAIL_TAG="${RED}✗ FAIL${RESET}"
+
 for dev in "${DEVICES[@]}"; do
   repo_var="DEVICE_${dev}"
   REPO="${!repo_var:-}"
@@ -104,6 +107,7 @@ for dev in "${DEVICES[@]}"; do
   APK_DEPLOYED="${MODULE_DIR}/${APK_FILENAME}"
   MK_PATH="${MODULE_DIR}/Android.mk"
   ERRORS=0
+  R_APK=""; R_MK=""; R_NAME=""; R_EMAIL=""; R_MSG=""
 
   echo -e "${BOLD}[${dev}] 驗證中...${RESET}"
 
@@ -113,12 +117,15 @@ for dev in "${DEVICES[@]}"; do
     DEPLOYED_MD5=$(md5sum "${APK_DEPLOYED}" | awk '{print $1}')
     if [[ "${DEPLOYED_MD5}" == "${STAGING_MD5}" ]]; then
       echo "  ✓ APK MD5 驗證通過: ${DEPLOYED_MD5}"
+      R_APK="${PASS_TAG}"
     else
       echo "  ✗ APK MD5 不符! staging=${STAGING_MD5} deployed=${DEPLOYED_MD5}"
+      R_APK="${FAIL_TAG}"
       ERRORS=$(( ERRORS+1 ))
     fi
   else
     echo "  ✗ 找不到已部署的 APK: ${APK_DEPLOYED}"
+    R_APK="${FAIL_TAG}"
     ERRORS=$(( ERRORS+1 ))
   fi
 
@@ -126,8 +133,10 @@ for dev in "${DEVICES[@]}"; do
   echo "--- 驗證 Android.mk ---"
   if grep -q "${APK_FILENAME}" "${MK_PATH}" 2>/dev/null; then
     echo "  ✓ Android.mk 已更新為 ${APK_FILENAME}"
+    R_MK="${PASS_TAG}"
   else
     echo "  ✗ Android.mk 未包含 ${APK_FILENAME}"
+    R_MK="${FAIL_TAG}"
     ERRORS=$(( ERRORS+1 ))
   fi
 
@@ -140,29 +149,44 @@ for dev in "${DEVICES[@]}"; do
 
   if [[ "${C_NAME}" == "${GIT_AUTHOR_NAME}" ]]; then
     echo "  ✓ Author name  : ${C_NAME}"
+    R_NAME="${PASS_TAG}"
   else
     echo "  ✗ Author name 不符! expected='${GIT_AUTHOR_NAME}' got='${C_NAME}'"
+    R_NAME="${FAIL_TAG}"
     ERRORS=$(( ERRORS+1 ))
   fi
 
   if [[ "${C_EMAIL}" == "${GIT_AUTHOR_EMAIL}" ]]; then
     echo "  ✓ Author email : ${C_EMAIL}"
+    R_EMAIL="${PASS_TAG}"
   else
     echo "  ✗ Author email 不符! expected='${GIT_AUTHOR_EMAIL}' got='${C_EMAIL}'"
+    R_EMAIL="${FAIL_TAG}"
     ERRORS=$(( ERRORS+1 ))
   fi
 
   echo "--- 驗證 commit message ---"
   if [[ "${C_SUBJECT}" == "${COMMIT_MSG}" ]]; then
     echo "  ✓ Commit message: ${C_SUBJECT}"
+    R_MSG="${PASS_TAG}"
   else
     echo "  ✗ Commit message 不符!"
     echo "    expected : ${COMMIT_MSG}"
     echo "    got      : ${C_SUBJECT}"
+    R_MSG="${FAIL_TAG}"
     ERRORS=$(( ERRORS+1 ))
   fi
 
   echo "  → commit hash: [${C_HASH}]"
+
+  # ---------- 驗證結果摘要 ----------
+  echo ""
+  echo -e "${BOLD}--- 驗證結果摘要 [${dev}] ---${RESET}"
+  echo -e "  ${R_APK}    APK MD5"
+  echo -e "  ${R_MK}    Android.mk LOCAL_SRC_FILES"
+  echo -e "  ${R_NAME}    Commit Author Name"
+  echo -e "  ${R_EMAIL}    Commit Author Email"
+  echo -e "  ${R_MSG}    Commit Message"
 
   if [[ ${ERRORS} -eq 0 ]]; then
     echo -e "${GREEN}[${dev}] 驗證通過 ✓${RESET}"
