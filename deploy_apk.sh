@@ -168,7 +168,8 @@ run() {
   if $DRY_RUN; then
     info "[DRY-RUN] $*"
   else
-    eval "$@"
+    # 用 subshell 包住 eval，避免內部 `cd` 污染外層 script 的 cwd
+    ( eval "$@" )
   fi
 }
 
@@ -236,9 +237,14 @@ deploy_device() {
     git push origin master"
   ok "[${dev}] push 完成"
 
-  # 5. 部署後驗證
+  # 5. 部署後驗證；驗證失敗即視為該機種部署失敗，回傳非零
   if ! $NO_VERIFY; then
-    verify_device "${dev}" "${REPO}" "${APK_DEST_DIR}" "${MK_PATH}"
+    if ! verify_device "${dev}" "${REPO}" "${APK_DEST_DIR}" "${MK_PATH}"; then
+      log "${RED}${SEP}${RESET}"
+      log "${RED}  ✗  [${dev}] 部署失敗（驗證未通過）${RESET}"
+      log "${RED}${SEP}${RESET}\n\n"
+      return 1
+    fi
   fi
 
   log "${GREEN}${SEP}${RESET}"
