@@ -292,7 +292,7 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 
 ### Q24. `--libs` 路徑要指到哪一層？
 
-**短答**：指到 **ABI 資料夾本身**（如 `arm64-v8a`），不是 ABI 的 parent。
+**短答**：指到 **ABI 資料夾本身**（如 `arm64-v8a`），且**必須位於 `toBeUploaded/` 之下**。
 
 ```
 toBeUploaded/<App>/<dev>/arm64-v8a/    ← --libs 指這裡
@@ -300,6 +300,8 @@ toBeUploaded/<App>/<dev>/arm64-v8a/    ← --libs 指這裡
 ```
 
 basename 就會被腳本拿去當 `LOCAL_TARGET_CPU_ABI` 的值，所以 ABI 資料夾名稱就**等於**該 ABI 設定。
+
+**為什麼強制要在 `toBeUploaded/` 之下？** 因為部署成功後腳本會 `rm -rf "${LIBS_PATH}"`，限制路徑可避免誤刪外部資料。
 
 ---
 

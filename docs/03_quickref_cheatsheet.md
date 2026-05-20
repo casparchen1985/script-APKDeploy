@@ -110,8 +110,10 @@ cd ~/apk_deploy
 ```
 
 - `--libs` basename → `LOCAL_TARGET_CPU_ABI`（範例：`arm64-v8a`）
+- **必須位於 `toBeUploaded/` 之下**（rm -rf 清理安全限制）
 - 內部檔案／階層／格式 RD 自理；hidden 與 symlink 跳過
 - **絕不刪除 remote 既有檔**；同名同 MD5 略過、同名異 MD5 覆蓋、新增不存在的
+- 全成功 → APK 自動 rm -f、libs 自動 rm -rf（清掉整包 ABI 資料夾）
 - `.mk` 自動維護 `LOCAL_TARGET_CPU_ABI` + `LOCAL_PREBUILT_JNI_LIBS`；缺欄位 insert 到 `include $(BUILD_PREBUILT)` 之前
 - 缺 `include $(BUILD_PREBUILT)` 錨點 → die
 

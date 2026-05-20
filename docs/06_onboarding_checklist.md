@@ -157,6 +157,7 @@
   ```
   <App>/<dev>/arm64-v8a/   ← 內部任何檔案、子目錄、副檔名都可以
   ```
+- [ ] **整包 staging 在 `toBeUploaded/` 內**（腳本強制要求；rm -rf 清理安全）
 - [ ] **確認沒誤放** `.DS_Store`、`Thumbs.db` 等 hidden 檔（會被跳過但避免混淆）
 - [ ] **避免 symlink**（會被跳過）
 
@@ -188,6 +189,7 @@
 |---|---|
 | `--libs 路徑為空目錄` | 確認 ABI 資料夾內有檔案 |
 | `--libs 路徑不合理（basename 為 . / ..）` | 不要用 `.` 或 `..` 當路徑 |
+| `--libs 路徑必須位於 staging 目錄 .../toBeUploaded/ 之下` | 把 libs 搬進 `toBeUploaded/` 後重跑 |
 | `Android.mk 缺 include $(BUILD_PREBUILT) 錨點` | 手動在 `.mk` 補上該行後重跑 |
 | `JNI Libs files MD5 失敗` | log 會列出全部不符檔案，比對 staging 與 remote 內容差異 |
 

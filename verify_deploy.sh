@@ -72,7 +72,7 @@ done
 APK_PATH="${APK_PATH/#\~/$HOME}"
 [[ -f "${APK_PATH}" ]] || { echo "找不到 APK: ${APK_PATH}"; exit 1; }
 
-# --libs 驗證 + ABI 偵測（optional）
+# --libs 驗證 + ABI 偵測（optional）— 跟 deploy_apk.sh 邏輯一致
 ABI_NAME=""
 LIB_FILES=()
 if [[ -n "${LIBS_PATH}" ]]; then
@@ -80,6 +80,15 @@ if [[ -n "${LIBS_PATH}" ]]; then
   LIBS_PATH="${LIBS_PATH%/}"
   [[ -e "${LIBS_PATH}" ]] || { echo "--libs 路徑不存在"; exit 1; }
   [[ -d "${LIBS_PATH}" ]] || { echo "--libs 不是資料夾"; exit 1; }
+
+  # 跟 deploy_apk.sh 同樣的 staging 路徑限制
+  LIBS_PATH_ABS=$(cd "${LIBS_PATH}" && pwd -P)
+  STAGING_DIR_ABS=$(cd "${APK_STAGING_DIR}" && pwd -P)
+  if [[ "${LIBS_PATH_ABS}" != "${STAGING_DIR_ABS}"/* ]]; then
+    echo "--libs 路徑必須位於 staging 目錄 ${APK_STAGING_DIR}/ 之下"; exit 1
+  fi
+  LIBS_PATH="${LIBS_PATH_ABS}"
+
   ABI_NAME="$(basename "${LIBS_PATH}")"
   if [[ "${ABI_NAME}" == "." || "${ABI_NAME}" == ".." || -z "${ABI_NAME}" ]]; then
     echo "--libs 路徑不合理（basename 為 . / .. / 空）"; exit 1

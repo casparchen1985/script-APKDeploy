@@ -12,7 +12,7 @@ apk_deploy/                  ← git clone 後的根目錄，cd 進來直接執�
 ├── batch_deploy.sh          # 批次包裝腳本（讀取 deploy_plan.xml）
 ├── verify_deploy.sh         # 獨立驗證腳本（不執行部署，僅檢查結果）
 ├── deploy_plan.xml          # 批次部署計畫範例
-├── toBeUploaded/            # APK 放這裡，部署成功後自動刪除
+├── toBeUploaded/            # APK + libs staging 區；全機種成功後自動清除（APK rm -f / libs rm -rf）
 │   └── .gitkeep
 ├── config/
 │   ├── devices.conf         # 機種名稱 → repo 路徑
@@ -228,6 +228,7 @@ ssh app_dev@192.168.8.17
 ```
 
 - **路徑直接指向 ABI 資料夾本身**，basename 即 `LOCAL_TARGET_CPU_ABI` 的值
+- **必須位於 `toBeUploaded/` 之下**（為了部署成功後的 `rm -rf` 清理安全）
 - 內部結構（子目錄、檔案類型）**完全由 RD 自理**，腳本不解讀也不限制
 - 隱藏檔（`.` 開頭）與 symlink 一律**跳過**
 
@@ -306,7 +307,18 @@ LOCAL_PREBUILT_JNI_LIBS := \
 | `--libs` 不是資料夾 | die |
 | `--libs` 為空目錄 | die |
 | `--libs` basename 為 `.` / `..` / 空 | die |
+| `--libs` **不在 `toBeUploaded/` 之下** | die（rm -rf 清理安全限制）|
 | `.mk` 缺 `include $(BUILD_PREBUILT)` 錨點 | die |
+
+#### 部署成功後的清理
+
+全機種成功部署完畢，腳本會：
+1. `rm -f` staging APK 檔案
+2. `rm -rf` `--libs` 指向的 ABI 整包資料夾
+
+任一機種失敗 → APK + libs 都保留，重新執行相同指令即可重試。
+
+> 由於 `rm -rf` 是破壞性動作，腳本強制 `--libs` 必須在 `toBeUploaded/` 之下，避免誤刪外部資料。
 
 ---
 

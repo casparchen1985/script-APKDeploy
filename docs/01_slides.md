@@ -237,6 +237,7 @@ cd ~/apk_deploy
 ```
 
 - `--libs` 路徑 **basename 即 `LOCAL_TARGET_CPU_ABI`**（範例：`arm64-v8a`）
+- **`--libs` 必須位於 `toBeUploaded/` 之下**（部署成功後 `rm -rf` 清理安全限制）
 - 內部檔案／階層／格式 **完全由 RD 自理**，腳本不解讀
 
 ---

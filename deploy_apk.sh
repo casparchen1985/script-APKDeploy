@@ -114,7 +114,19 @@ if [[ "${LOG_FILE}" != "${NEW_LOG}" ]]; then
   LOG_FILE="${NEW_LOG}"
 fi
 
+# ---------- 載入設定 ----------
+source "${DEVICES_CONF}"
+source "${AUTHORS_CONF}"
+
+# APK_STAGING_DIR 固定為腳本同層的 toBeUploaded/（devices.conf 可覆寫）
+if [[ -z "${APK_STAGING_DIR}" ]]; then
+  APK_STAGING_DIR="${SCRIPT_DIR}/toBeUploaded"
+else
+  APK_STAGING_DIR="${APK_STAGING_DIR/#\~/$HOME}"
+fi
+
 # ---------- --libs 驗證 + ABI 偵測（optional）----------
+# 注意：必須在 APK_STAGING_DIR 設好之後執行，因為要做 staging 路徑限制檢查
 ABI_NAME=""
 LIB_FILES=()
 if [[ -n "${LIBS_PATH}" ]]; then
@@ -123,6 +135,14 @@ if [[ -n "${LIBS_PATH}" ]]; then
 
   [[ -e "${LIBS_PATH}" ]] || die "--libs 路徑不存在"
   [[ -d "${LIBS_PATH}" ]] || die "--libs 不是資料夾"
+
+  # 安全限制：--libs 必須位於 staging 目錄之下，避免全成功後 rm -rf 誤刪外部資料
+  LIBS_PATH_ABS=$(cd "${LIBS_PATH}" && pwd -P)
+  STAGING_DIR_ABS=$(cd "${APK_STAGING_DIR}" && pwd -P)
+  if [[ "${LIBS_PATH_ABS}" != "${STAGING_DIR_ABS}"/* ]]; then
+    die "--libs 路徑必須位於 staging 目錄 ${APK_STAGING_DIR}/ 之下（rm -rf 清理安全限制）"
+  fi
+  LIBS_PATH="${LIBS_PATH_ABS}"   # 後續一律用 canonical 絕對路徑
 
   ABI_NAME="$(basename "${LIBS_PATH}")"
   if [[ "${ABI_NAME}" == "." || "${ABI_NAME}" == ".." || -z "${ABI_NAME}" ]]; then
@@ -136,17 +156,6 @@ if [[ -n "${LIBS_PATH}" ]]; then
   done < <(find "${LIBS_PATH}" -type f -not -path '*/.*' -print0 2>/dev/null | LC_ALL=C sort -z)
 
   [[ ${#LIB_FILES[@]} -eq 0 ]] && die "--libs 路徑為空目錄，無檔案可部署"
-fi
-
-# ---------- 載入設定 ----------
-source "${DEVICES_CONF}"
-source "${AUTHORS_CONF}"
-
-# APK_STAGING_DIR 固定為腳本同層的 toBeUploaded/（devices.conf 可覆寫）
-if [[ -z "${APK_STAGING_DIR}" ]]; then
-  APK_STAGING_DIR="${SCRIPT_DIR}/toBeUploaded"
-else
-  APK_STAGING_DIR="${APK_STAGING_DIR/#\~/$HOME}"
 fi
 
 # 解析 author
@@ -668,18 +677,27 @@ for dev in "${VALID_DEVICES[@]}"; do
   fi
 done
 
-# ---------- 清除 staging APK ----------
+# ---------- 清除 staging（APK + libs）----------
 # 規則：所有指定機種皆部署成功 → 刪除；任一失敗 → 保留供重試
 if [[ ${#FAILED[@]} -eq 0 ]]; then
   if $DRY_RUN; then
     info "[DRY-RUN] rm ${APK_PATH}  # 全部成功，清除 staging APK"
+    if [[ -n "${LIBS_PATH}" ]]; then
+      info "[DRY-RUN] rm -rf ${LIBS_PATH}  # 全部成功，清除 staging libs 目錄"
+    fi
   else
     rm -f "${APK_PATH}"
     ok "Staging APK 已清除: ${APK_FILENAME}"
+    if [[ -n "${LIBS_PATH}" ]]; then
+      rm -rf "${LIBS_PATH}"
+      ok "Staging libs 目錄已清除: ${LIBS_PATH}"
+    fi
   fi
 else
-  warn "有機種部署失敗，staging APK 保留供重試: ${APK_FILENAME}"
-  warn "重試時直接重新執行相同指令即可，APK 仍在 ${SCRIPT_DIR}/toBeUploaded/"
+  warn "有機種部署失敗，staging 保留供重試:"
+  warn "  APK : ${APK_FILENAME}"
+  [[ -n "${LIBS_PATH}" ]] && warn "  Libs: ${LIBS_PATH}"
+  warn "重試時直接重新執行相同指令即可。"
 fi
 
 # ---------- 最終結果 ----------
