@@ -263,7 +263,7 @@ Hidden 檔（`.` 開頭）與 symlink **一律跳過**。
 
 含 `--libs` 部署時，`Android.mk` 額外維護 2 個欄位（缺則自動 insert 到 `include $(BUILD_PREBUILT)` 之前）：
 
-```mk
+```makefile
 LOCAL_TARGET_CPU_ABI    := arm64-v8a
 LOCAL_PREBUILT_JNI_LIBS := \
     libs/$(LOCAL_TARGET_CPU_ABI)/README \
