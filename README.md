@@ -128,6 +128,7 @@ ssh app_dev@192.168.8.17
 |------|------|------|
 | `--app` | ✓ | APP 名稱，對應 repo 內的目錄名稱（用來定位 `Android.mk`） |
 | `--apk` | ✓ | staging 目錄上的 APK 路徑 |
+| `--libs` | — | （可選）ABI 資料夾路徑，basename 即 `LOCAL_TARGET_CPU_ABI`。內部任意檔案（含子目錄、無副檔名、任何格式都接受）。詳見 [JNI Libs 部署](#jni-libs-部署可選) 一節 |
 | `--author` | ✓ | `authors.conf` 中的 key，例如 `Bob`、`Caspar` |
 | `--message` | ✓ | git commit message（完整字串，以引號包覆）。標準格式：`<JIRA-ID> : [Cipherlab] Update <App> v<Version>`，例如 `SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3` |
 | `--device` | ✓ | 一或多個機種名稱（空格分隔），必須是 `devices.conf` 中定義的名稱 |
@@ -168,14 +169,15 @@ ssh app_dev@192.168.8.17
     </devices>
   </task>
 
+  <!-- 含 JNI libs 的 task：多一個 <libs> 欄位（可選） -->
   <task>
-    <app>ScanManager</app>
-    <apk>~/apk_deploy/toBeUploaded/ScanManager_v3.0.1.apk</apk>
+    <app>ReaderService_CipherLab</app>
+    <apk>~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk</apk>
+    <libs>~/apk_deploy/toBeUploaded/ReaderService_CipherLab/rs38t/arm64-v8a</libs>
     <author>Bob</author>
-    <message>SW_CLUTY-397 : [Cipherlab] Update ScanManager v3.0.1</message>
+    <message>SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
     <devices>
       <device>rs38t</device>
-      <device>rs38v</device>
     </devices>
   </task>
 
@@ -199,7 +201,112 @@ ssh app_dev@192.168.8.17
   --device  rk26s rs36s rk95u
 ```
 
+含 libs 的部署，驗證時也帶 `--libs`（路徑與當初 deploy 用的相同）：
+
+```bash
+./verify_deploy.sh \
+  --app     ReaderService_CipherLab \
+  --apk     ~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk \
+  --libs    ~/apk_deploy/toBeUploaded/ReaderService_CipherLab/rs38t/arm64-v8a \
+  --author  Bob \
+  --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
+  --device  rs38t
+```
+
 參數與 `deploy_apk.sh` 相同（無 `--dry-run` / `--no-verify`）。
+
+---
+
+### JNI Libs 部署（可選）
+
+當 module 需要附帶外部資源檔（例如 `.so` JNI libs、`.json` 設定、`.txt` 說明檔，或無副檔名的資源）時，使用 `--libs <ABI 資料夾路徑>` 一次帶上。
+
+#### 路徑語意
+
+```
+--libs <abi-folder>
+```
+
+- **路徑直接指向 ABI 資料夾本身**，basename 即 `LOCAL_TARGET_CPU_ABI` 的值
+- 內部結構（子目錄、檔案類型）**完全由 RD 自理**，腳本不解讀也不限制
+- 隱藏檔（`.` 開頭）與 symlink 一律**跳過**
+
+範例 staging 結構：
+
+```
+toBeUploaded/
+└── ReaderService_CipherLab/
+    └── rs38t/
+        └── arm64-v8a/                ← --libs 指這裡
+            ├── libbarcodereader.so
+            ├── libIAC.so
+            ├── config.json
+            ├── README                 (無副檔名也接受)
+            └── sub/
+                └── libdeep.so          (任意巢狀)
+```
+
+```bash
+./deploy_apk.sh \
+  --app  ReaderService_CipherLab \
+  --apk  ~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk \
+  --libs ~/apk_deploy/toBeUploaded/ReaderService_CipherLab/rs38t/arm64-v8a \
+  --author  Caspar \
+  --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
+  --device  rs38t
+```
+
+部署後 remote 結構：
+
+```
+<repo>/vendor/cipherlab/ReaderService_CipherLab/
+├── Android.mk                                ← 自動更新 3 欄位
+├── ReaderService_CipherLab_V1_3_104.apk      ← APK
+└── libs/arm64-v8a/                            ← 跟 --libs 一致
+    ├── libbarcodereader.so
+    ├── libIAC.so
+    ├── config.json
+    ├── README
+    └── sub/libdeep.so
+```
+
+#### 檔案動作規則（核心準則）
+
+| local 狀態 | remote 狀態 | 動作 |
+|---|---|---|
+| 檔案存在 | 不存在 | **新增** (含必要父層 `mkdir -p`)，標籤 `[ Added ]` |
+| 檔案存在 | 存在 + MD5 異 | **覆蓋**，標籤 `[Updated]` |
+| 檔案存在 | 存在 + MD5 同 | **略過**（不動），標籤 `[Skipped]` |
+| 檔案不存在 | 存在 | **保留 remote**（絕不刪除）|
+
+#### `.mk` 自動維護
+
+當 `--libs` 提供時，腳本在 cp 全部完成後更新 `Android.mk` 三個欄位：
+
+```mk
+LOCAL_SRC_FILES         := ReaderService_CipherLab_V1_3_104.apk
+LOCAL_TARGET_CPU_ABI    := arm64-v8a
+LOCAL_PREBUILT_JNI_LIBS := \
+    libs/$(LOCAL_TARGET_CPU_ABI)/README \
+    libs/$(LOCAL_TARGET_CPU_ABI)/config.json \
+    libs/$(LOCAL_TARGET_CPU_ABI)/libIAC.so \
+    libs/$(LOCAL_TARGET_CPU_ABI)/libbarcodereader.so \
+    libs/$(LOCAL_TARGET_CPU_ABI)/sub/libdeep.so
+```
+
+- 後兩欄位若 `.mk` 原本沒有：腳本**自動 insert 到 `include $(BUILD_PREBUILT)` 之前**
+- 若連 `include $(BUILD_PREBUILT)` 都找不到：`die`
+- `LOCAL_PREBUILT_JNI_LIBS` 來源是 **remote `libs/` 內全部檔案**（保留既有檔，與本次部署檔合併），依字母升序（大小寫敏感）
+
+#### 邊界 die 條件
+
+| 情境 | 行為 |
+|---|---|
+| `--libs` 路徑不存在 | die |
+| `--libs` 不是資料夾 | die |
+| `--libs` 為空目錄 | die |
+| `--libs` basename 為 `.` / `..` / 空 | die |
+| `.mk` 缺 `include $(BUILD_PREBUILT)` 錨點 | die |
 
 ---
 
@@ -213,19 +320,28 @@ ssh app_dev@192.168.8.17
 [2] 複製 APK 至 repo（版號策略，見下節）
     cp <SCRIPT_DIR>/toBeUploaded/<apk> → <repo>/vendor/cipherlab/<APP_NAME>/
          ↓
-[3] 更新 Android.mk
-    sed 替換 LOCAL_SRC_FILES := *.apk → 新 APK 檔名
+[3] 複製 libs 至 repo（僅當提供 --libs）
+    逐檔判定 Added / Updated / Skipped (MD5)
+    → <repo>/.../<APP_NAME>/libs/<ABI_NAME>/...
+         ↓  --- 到此所有檔案都到位 ---
+[4] 更新 Android.mk（在所有 cp 結束之後）
+    LOCAL_SRC_FILES       ← APK 檔名
+    LOCAL_TARGET_CPU_ABI  ← ABI 名稱  (僅當 --libs)
+    LOCAL_PREBUILT_JNI_LIBS ← 自動枚舉 (僅當 --libs)
+    缺欄位自動 insert 到 include $(BUILD_PREBUILT) 之前
          ↓
-[4] git add + commit + push
+[5] git add + commit + push
     git commit --author="Firstname.Lastname <email>" 來自 authors.conf
     commit message 來自 --message 參數
     git push origin master
          ↓
-[5] 自動驗證（可用 --no-verify 略過）
-    ✓ 已部署的 APK 存在且 MD5 與 staging 來源一致
-    ✓ Android.mk 已包含正確 APK 檔名
-    ✓ commit author name 符合 authors.conf
-    ✓ commit author email 符合 authors.conf
+[6] 自動驗證（可用 --no-verify 略過）—— 無 --libs 5 項；有 --libs 8 項
+    ✓ 已部署的 APK 存在且 MD5 與 staging 一致
+    ✓ Android.mk LOCAL_SRC_FILES 已更新
+    ✓ Android.mk LOCAL_TARGET_CPU_ABI 已更新     (有 --libs)
+    ✓ Android.mk LOCAL_PREBUILT_JNI_LIBS 列表完整 (有 --libs)
+    ✓ JNI Libs files MD5 全對                    (有 --libs)
+    ✓ commit author name / email 符合 authors.conf
     ✓ commit message 符合 --message 參數
 ```
 
@@ -248,7 +364,13 @@ ssh app_dev@192.168.8.17
 
 ## Android.mk 更新規則
 
-`sed` 替換 `LOCAL_SRC_FILES` 的值，支援各種空白寫法：
+`Android.mk` 在每次部署都會更新以下欄位（用 Python 處理，避免平台 `sed` 差異）：
+
+| 欄位 | 何時更新 | 寫入規則 |
+|---|---|---|
+| `LOCAL_SRC_FILES` | 每次部署 | 直接寫入 APK 完整檔名（literal）|
+| `LOCAL_TARGET_CPU_ABI` | 僅當 `--libs` 提供 | 寫入 ABI 名稱（= `basename(--libs)`）；缺欄位則自動 insert |
+| `LOCAL_PREBUILT_JNI_LIBS` | 僅當 `--libs` 提供 | 用 `libs/$(LOCAL_TARGET_CPU_ABI)/<檔案路徑>` 變數形式列出 remote `libs/<ABI>/` 內全部檔案；依字母升序；缺欄位則自動 insert |
 
 ```makefile
 # 更新前
@@ -258,7 +380,20 @@ LOCAL_SRC_FILES := KeyMappingManager_v1.0.0.apk
 LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
 ```
 
-替換後腳本立即驗證 `Android.mk` 是否已包含新 APK 檔名，若未成功則中止並回報錯誤。
+含 libs 部署時範例：
+
+```makefile
+# 更新後
+LOCAL_SRC_FILES         := ReaderService_CipherLab_V1_3_104.apk
+LOCAL_TARGET_CPU_ABI    := arm64-v8a
+LOCAL_PREBUILT_JNI_LIBS := \
+    libs/$(LOCAL_TARGET_CPU_ABI)/README \
+    libs/$(LOCAL_TARGET_CPU_ABI)/config.json \
+    libs/$(LOCAL_TARGET_CPU_ABI)/libIAC.so \
+    libs/$(LOCAL_TARGET_CPU_ABI)/libbarcodereader.so
+```
+
+更新完畢腳本立即用 grep 驗證 `Android.mk` 已含新內容；含 `--libs` 部署時，後續 verify 階段還會比對 ABI / lib list / lib files 個別 MD5。`.mk` 若缺 `include $(BUILD_PREBUILT)` 錨點 → `die`。
 
 ---
 
@@ -276,21 +411,37 @@ LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
 ────────────────────────────────────────
 ```
 
-**Android.mk 更新後接續印出 LOCAL_SRC_FILES 行內容：**
+**cp libs 處理結果（含 --libs 時）：**
 
 ```
-[14:30:22] OK    [rk26s] Android.mk 更新完成
-  └─ /home/app_dev/rk26s/LA.QSSI.12.0/vendor/cipherlab/KeyMappingManager/Android.mk
-     LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
+[05-20 14:30:22] [rk26s] cp libs 處理結果（共 5 檔）：
+[05-20 14:30:22]   [ Added ]   libs/arm64-v8a/README
+[05-20 14:30:22]   [ Added ]   libs/arm64-v8a/config.json
+[05-20 14:30:22]   [Skipped]   libs/arm64-v8a/libIAC.so
+[05-20 14:30:22]   [Updated]   libs/arm64-v8a/libbarcodereader.so
+[05-20 14:30:22]   [ Added ]   libs/arm64-v8a/sub/libdeep.so
+[05-20 14:30:22] OK    [rk26s] libs 處理完成 (Added 3 / Updated 1 / Skipped 1)
 ```
 
-**驗證輸出（含結果摘要）：**
+**Android.mk 更新後接續印出欄位內容：**
+
+```
+[05-20 14:30:22] OK    [rk26s] Android.mk 更新完成
+  └─ LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
+  └─ LOCAL_TARGET_CPU_ABI := arm64-v8a               (僅當 --libs)
+  └─ LOCAL_PREBUILT_JNI_LIBS:                         (僅當 --libs)
+       libs/$(LOCAL_TARGET_CPU_ABI)/README
+       libs/$(LOCAL_TARGET_CPU_ABI)/config.json
+       ...
+```
+
+**驗證輸出（純 APK，5 項）：**
 
 ```
 --- 驗證 APK ---
   ✓ APK MD5 驗證通過: a3f9c12d8e4b7f2190ac56de83107b45
---- 驗證 Android.mk ---
-  ✓ Android.mk 已更新為 KeyMappingManager_v1.2.3.apk
+--- 驗證 Android.mk LOCAL_SRC_FILES ---
+  ✓ LOCAL_SRC_FILES 已更新為 KeyMappingManager_v1.2.3.apk
 --- 驗證 commit author ---
   ✓ Author name  : Bob.Lin
   ✓ Author email : Bob.Lin@cipherlab.com.tw
@@ -304,10 +455,24 @@ LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
   ✓ PASS    Commit Author Name
   ✓ PASS    Commit Author Email
   ✓ PASS    Commit Message
-[14:30:25] OK    [rk26s] 驗證全部通過 ✓
+[05-20 14:30:25] OK    [rk26s] 驗證全部通過 ✓
 ```
 
-任一項目不符，該項在摘要中標 `✗ FAIL`，該機種標記為失敗，最終 exit code 為 1。
+**含 libs 部署的驗證摘要（8 項）：**
+
+```
+--- 驗證結果摘要 [rs38t] ---
+  ✓ PASS    APK MD5
+  ✓ PASS    Android.mk LOCAL_SRC_FILES
+  ✓ PASS    Android.mk LOCAL_TARGET_CPU_ABI = arm64-v8a
+  ✓ PASS    Android.mk LOCAL_PREBUILT_JNI_LIBS (5 entries)
+  ✓ PASS    JNI Libs files (5 files MD5)
+  ✓ PASS    Commit Author Name
+  ✓ PASS    Commit Author Email
+  ✓ PASS    Commit Message
+```
+
+任一項目不符，該項在摘要中標 `✗ FAIL`，該機種標記為失敗，最終 exit code 為 1。Lib 驗證失敗時會列出所有不符檔案完整相對路徑。
 
 ---
 
@@ -316,7 +481,8 @@ LOCAL_SRC_FILES := KeyMappingManager_v1.2.3.apk
 每次執行 `deploy_apk.sh` 都會在 `logs/` 下自動產生 log 檔：
 
 ```
-logs/deploy_20250513_143022.log
+logs/deploy-<Author>-<App>-YYYYMMDD_HHMMSS.log
+# 例：logs/deploy-Caspar-KeyMappingManager-20260520_143022.log
 ```
 
 `batch_deploy.sh` 呼叫多次 `deploy_apk.sh`，每次呼叫各自產生獨立 log。

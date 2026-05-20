@@ -42,6 +42,7 @@ cd ~/apk_deploy
 |---|---|---|---|
 | `--app` | ✓ | `KeyMappingManager` | repo 內 module 目錄名稱（大小寫敏感） |
 | `--apk` | ✓ | `~/apk_deploy/toBeUploaded/KMM_v1.2.3.apk` | staging APK 完整路徑 |
+| `--libs` | — | `~/.../<App>/<dev>/arm64-v8a` | （可選）ABI 資料夾路徑，basename = `LOCAL_TARGET_CPU_ABI` |
 | `--author` | ✓ | `Caspar` | `authors.conf` 的 key |
 | `--message` | ✓ | `"SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3"` | git commit message（標準格式） |
 | `--device` | ✓ | `rk26s rs36s rk95u` | 一或多個機種，空格分隔 |
@@ -96,6 +97,28 @@ cd ~/apk_deploy
 
 ---
 
+## 5.5 JNI Libs 部署（可選）
+
+附帶 `.so` libs / `.json` 設定 / 任何資源檔時，加 `--libs <ABI 資料夾路徑>`：
+
+```bash
+./deploy_apk.sh --app <App> \
+  --apk  ~/.../toBeUploaded/<App>_vX.Y.Z.apk \
+  --libs ~/.../toBeUploaded/<App>/<dev>/arm64-v8a \
+  --author <Key> --message "<JIRA-ID> : [Cipherlab] Update <App> v<Version>" \
+  --device <d1>
+```
+
+- `--libs` basename → `LOCAL_TARGET_CPU_ABI`（範例：`arm64-v8a`）
+- 內部檔案／階層／格式 RD 自理；hidden 與 symlink 跳過
+- **絕不刪除 remote 既有檔**；同名同 MD5 略過、同名異 MD5 覆蓋、新增不存在的
+- `.mk` 自動維護 `LOCAL_TARGET_CPU_ABI` + `LOCAL_PREBUILT_JNI_LIBS`；缺欄位 insert 到 `include $(BUILD_PREBUILT)` 之前
+- 缺 `include $(BUILD_PREBUILT)` 錨點 → die
+
+逐檔 log 標籤：`[ Added ]` / `[Updated]` / `[Skipped]`
+
+---
+
 ## 6. 批次部署
 
 ```bash
@@ -122,6 +145,7 @@ vim deploy_plan.xml
 ```
 
 驗證五項：APK MD5 / Android.mk LOCAL_SRC_FILES / commit author name / commit author email / commit message。
+含 `--libs` 部署時 +3 項：LOCAL_TARGET_CPU_ABI / LOCAL_PREBUILT_JNI_LIBS / JNI Libs files MD5。
 **Staging APK 必須仍在 `toBeUploaded/`** 作為 MD5 比對基準。
 
 ---
@@ -143,7 +167,8 @@ vim deploy_plan.xml
 ## 9. Log 位置
 
 ```
-~/apk_deploy/logs/deploy_YYYYMMDD_HHMMSS.log
+~/apk_deploy/logs/deploy-<AuthorKey>-<AppName>-YYYYMMDD_HHMMSS.log
+# 例：~/apk_deploy/logs/deploy-Caspar-KeyMappingManager-20260520_143022.log
 ```
 
 回報問題時請附對應 log，含時間戳記方便對照。

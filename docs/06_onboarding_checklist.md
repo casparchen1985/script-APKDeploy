@@ -146,6 +146,53 @@
 
 ---
 
+## Checklist E — 含 JNI Libs 的 release（v1.0.2 新增）
+
+當 release 需要附帶 `.so` libs 或其他外部資源檔時，**加跑這份**。
+
+### E.1 staging 準備（本機）
+
+- [ ] APK 已準備
+- [ ] Libs 已整成 **單一 ABI 資料夾** 結構：
+  ```
+  <App>/<dev>/arm64-v8a/   ← 內部任何檔案、子目錄、副檔名都可以
+  ```
+- [ ] **確認沒誤放** `.DS_Store`、`Thumbs.db` 等 hidden 檔（會被跳過但避免混淆）
+- [ ] **避免 symlink**（會被跳過）
+
+### E.2 上傳到 server
+
+- [ ] APK + libs 目錄一起 scp 到 server：
+  ```bash
+  scp <App>_vX.Y.Z.apk app_dev@192.168.8.17:~/apk_deploy/toBeUploaded/
+  scp -r <App>/ app_dev@192.168.8.17:~/apk_deploy/toBeUploaded/
+  ```
+
+### E.3 確認 .mk 條件
+
+- [ ] 目標 repo 的 `<App>/Android.mk` 含 `include $(BUILD_PREBUILT)`（自動 insert 需要這個錨點）
+
+### E.4 部署
+
+- [ ] **先 `--dry-run`**，預覽：
+  - [ ] `Summary` 顯示 `Libs ABI: <abi-name> (N 個檔案)` 正確
+  - [ ] 逐檔 `[ Added ]` / `[Updated]` / `[Skipped]` 標籤合理
+  - [ ] `.mk` 預期欄位（LOCAL_TARGET_CPU_ABI、LOCAL_PREBUILT_JNI_LIBS）內容正確
+- [ ] 拿掉 `--dry-run` 正式跑
+- [ ] 驗證階段顯示 **8 項全 ✓ PASS**（含 lib 相關 3 項）
+- [ ] Staging APK 與 libs 已自動清除
+
+### E.5 失敗時排查
+
+| 訊息 | 處理 |
+|---|---|
+| `--libs 路徑為空目錄` | 確認 ABI 資料夾內有檔案 |
+| `--libs 路徑不合理（basename 為 . / ..）` | 不要用 `.` 或 `..` 當路徑 |
+| `Android.mk 缺 include $(BUILD_PREBUILT) 錨點` | 手動在 `.mk` 補上該行後重跑 |
+| `JNI Libs files MD5 失敗` | log 會列出全部不符檔案，比對 staging 與 remote 內容差異 |
+
+---
+
 ## 附錄：標準 commit message 格式建議
 
 雖然腳本不強制，**團隊內建議統一格式**：

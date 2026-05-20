@@ -17,6 +17,8 @@
 # 選項:
 #   --app       APP 名稱（對應 repo 內目錄名稱，用來定位 Android.mk，必填）
 #   --apk       staging 目錄上的 APK 路徑（必填）
+#   --libs      ABI 資料夾路徑，basename 即 LOCAL_TARGET_CPU_ABI（可選）
+#               內部任意檔案（含子目錄、無副檔名、非 .so 都接受）
 #   --author    authors.conf 中的 key，例如 Bob（必填）
 #   --message   git commit message（必填）
 #   --device    一或多個機種，空格分隔，必須是 devices.conf 中定義的名稱（必填）
@@ -40,7 +42,10 @@ DEVICES_CONF="${CONFIG_DIR}/devices.conf"
 AUTHORS_CONF="${CONFIG_DIR}/authors.conf"
 
 mkdir -p "${LOG_DIR}"
-LOG_FILE="${LOG_DIR}/deploy_$(date +%Y%m%d_%H%M%S).log"
+# 起始 LOG_FILE 用 placeholder 名；解析完 --author / --app 後 rename 為
+# deploy-<AuthorKey>-<AppName>-YYYYMMDD_HHMMSS.log
+DATE_STAMP="$(date +%Y%m%d_%H%M%S)"
+LOG_FILE="${LOG_DIR}/deploy-pending-${DATE_STAMP}.log"
 
 # ---------- 顏色輸出 ----------
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -62,6 +67,7 @@ die()  { err "$*"; exit 1; }
 # ---------- 解析參數 ----------
 APP_NAME=""
 APK_PATH=""
+LIBS_PATH=""
 AUTHOR_KEY=""
 COMMIT_MSG=""
 DEVICES=()
@@ -72,6 +78,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --app)     APP_NAME="$2";   shift 2 ;;
     --apk)     APK_PATH="$2";   shift 2 ;;
+    --libs)    LIBS_PATH="$2";  shift 2 ;;
     --author)  AUTHOR_KEY="$2"; shift 2 ;;
     --message) COMMIT_MSG="$2"; shift 2 ;;
     --device)
@@ -99,6 +106,37 @@ done
 # ~ 展開
 APK_PATH="${APK_PATH/#\~/$HOME}"
 [[ -f "${APK_PATH}" ]] || die "找不到 APK 檔案: ${APK_PATH}"
+
+# ---------- LOG_FILE rename: deploy-<Author>-<App>-DATE.log ----------
+NEW_LOG="${LOG_DIR}/deploy-${AUTHOR_KEY}-${APP_NAME}-${DATE_STAMP}.log"
+if [[ "${LOG_FILE}" != "${NEW_LOG}" ]]; then
+  [[ -f "${LOG_FILE}" ]] && mv "${LOG_FILE}" "${NEW_LOG}"
+  LOG_FILE="${NEW_LOG}"
+fi
+
+# ---------- --libs 驗證 + ABI 偵測（optional）----------
+ABI_NAME=""
+LIB_FILES=()
+if [[ -n "${LIBS_PATH}" ]]; then
+  LIBS_PATH="${LIBS_PATH/#\~/$HOME}"
+  LIBS_PATH="${LIBS_PATH%/}"   # 去除末尾斜線方便 basename
+
+  [[ -e "${LIBS_PATH}" ]] || die "--libs 路徑不存在"
+  [[ -d "${LIBS_PATH}" ]] || die "--libs 不是資料夾"
+
+  ABI_NAME="$(basename "${LIBS_PATH}")"
+  if [[ "${ABI_NAME}" == "." || "${ABI_NAME}" == ".." || -z "${ABI_NAME}" ]]; then
+    die "--libs 路徑不合理（basename 為 . / .. / 空）"
+  fi
+
+  # 遞迴枚舉 lib 檔案：排除 hidden（任何路徑段以 . 開頭）、symlink
+  # 排序：字母升序、大小寫敏感（LC_ALL=C）
+  while IFS= read -r -d '' f; do
+    LIB_FILES+=("$f")
+  done < <(find "${LIBS_PATH}" -type f -not -path '*/.*' -print0 2>/dev/null | LC_ALL=C sort -z)
+
+  [[ ${#LIB_FILES[@]} -eq 0 ]] && die "--libs 路徑為空目錄，無檔案可部署"
+fi
 
 # ---------- 載入設定 ----------
 source "${DEVICES_CONF}"
@@ -143,13 +181,16 @@ done
 
 # ---------- 摘要 ----------
 echo -e "${BOLD}====== APK Deploy Summary ======${RESET}"
-echo -e "  APP       : ${CYAN}${APP_NAME}${RESET}"
-echo -e "  APK       : ${CYAN}${APK_FILENAME}${RESET}"
-echo -e "  版號識別  : $(${APK_HAS_VERSION} && echo "${GREEN}有版號 → 保留舊版共存${RESET}" || echo "${YELLOW}無版號 → 同名覆蓋${RESET}")"
-echo -e "  Author    : ${CYAN}${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>${RESET}"
-echo -e "  Message   : ${CYAN}${COMMIT_MSG}${RESET}"
-echo -e "  Devices   : ${CYAN}${VALID_DEVICES[*]}${RESET}"
-echo -e "  Dry-run   : ${DRY_RUN}"
+echo -e "  APP        : ${CYAN}${APP_NAME}${RESET}"
+echo -e "  APK        : ${CYAN}${APK_FILENAME}${RESET}"
+echo -e "  版號識別   : $(${APK_HAS_VERSION} && echo "${GREEN}有版號 → 保留舊版共存${RESET}" || echo "${YELLOW}無版號 → 同名覆蓋${RESET}")"
+if [[ -n "${LIBS_PATH}" ]]; then
+  echo -e "  Libs ABI   : ${CYAN}${ABI_NAME}${RESET}  (${#LIB_FILES[@]} 個檔案)"
+fi
+echo -e "  Author     : ${CYAN}${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>${RESET}"
+echo -e "  Message    : ${CYAN}${COMMIT_MSG}${RESET}"
+echo -e "  Devices    : ${CYAN}${VALID_DEVICES[*]}${RESET}"
+echo -e "  Dry-run    : ${DRY_RUN}"
 echo -e "================================"
 echo ""
 
@@ -173,6 +214,213 @@ run() {
   fi
 }
 
+# ---------- libs 部署函式 ----------
+# 逐檔判定 Added / Updated / Skipped，並印到 log。
+# 絕不刪除 remote 既有檔案/資料夾；空子資料夾不傳遞。
+deploy_libs() {
+  local dev="$1"
+  local libs_remote_dir="$2"   # <repo>/.../<APP>/libs/<ABI_NAME>
+  local count_added=0 count_updated=0 count_skipped=0
+
+  log "[${dev}] cp libs 處理結果（共 ${#LIB_FILES[@]} 檔）："
+
+  for src_file in "${LIB_FILES[@]}"; do
+    local rel_path="${src_file#${LIBS_PATH}/}"
+    local target_file="${libs_remote_dir}/${rel_path}"
+    local target_subdir
+    target_subdir="$(dirname "${target_file}")"
+
+    # 判定動作（dry-run 也照樣判定，以便預覽）
+    local action="Added"
+    if [[ -f "${target_file}" ]]; then
+      local src_md5 dst_md5
+      src_md5=$(md5sum "${src_file}"    | awk '{print $1}')
+      dst_md5=$(md5sum "${target_file}" | awk '{print $1}')
+      if [[ "${src_md5}" == "${dst_md5}" ]]; then
+        action="Skipped"
+      else
+        action="Updated"
+      fi
+    fi
+
+    case "${action}" in
+      Added)
+        if ! $DRY_RUN; then
+          mkdir -p "${target_subdir}"
+          cp "${src_file}" "${target_file}"
+        fi
+        log "  [ Added ]   libs/${ABI_NAME}/${rel_path}"
+        count_added=$(( count_added + 1 ))
+        ;;
+      Updated)
+        if ! $DRY_RUN; then
+          cp "${src_file}" "${target_file}"
+        fi
+        log "  [Updated]   libs/${ABI_NAME}/${rel_path}"
+        count_updated=$(( count_updated + 1 ))
+        ;;
+      Skipped)
+        log "  [Skipped]   libs/${ABI_NAME}/${rel_path}"
+        count_skipped=$(( count_skipped + 1 ))
+        ;;
+    esac
+  done
+
+  ok "[${dev}] libs 處理完成 (Added ${count_added} / Updated ${count_updated} / Skipped ${count_skipped})"
+}
+
+# ---------- Android.mk 更新函式 ----------
+# 更新 LOCAL_SRC_FILES（必更）、LOCAL_TARGET_CPU_ABI、LOCAL_PREBUILT_JNI_LIBS（後兩者需 --libs）。
+# 缺欄位則自動 insert 到 `include $(BUILD_PREBUILT)` 之前；錨點不存在 → die。
+update_mk() {
+  local dev="$1"
+  local mk_path="$2"
+
+  if $DRY_RUN; then
+    info "[DRY-RUN] 更新 ${mk_path}"
+    log "  └─ (dry-run 預期)"
+    log "     LOCAL_SRC_FILES := ${APK_FILENAME}"
+    if [[ -n "${LIBS_PATH}" ]]; then
+      log "     LOCAL_TARGET_CPU_ABI := ${ABI_NAME}"
+      log "     LOCAL_PREBUILT_JNI_LIBS:"
+      for f in "${LIB_FILES[@]}"; do
+        local rel="${f#${LIBS_PATH}/}"
+        log "       libs/\$(LOCAL_TARGET_CPU_ABI)/${rel}"
+      done
+    fi
+    ok "[${dev}] Android.mk 更新完成"
+    return 0
+  fi
+
+  [[ -f "${mk_path}" ]] || die "找不到 Android.mk: ${mk_path}"
+
+  # 收集 lib 相對路徑（一行一筆）給 python
+  local libs_rel=""
+  if [[ -n "${LIBS_PATH}" ]]; then
+    libs_rel=$(for f in "${LIB_FILES[@]}"; do echo "${f#${LIBS_PATH}/}"; done)
+  fi
+
+  set +e
+  MK_PATH="${mk_path}" \
+  APK_FN="${APK_FILENAME}" \
+  ABI_NAME="${ABI_NAME}" \
+  LIB_PATHS="${libs_rel}" \
+  python3 - <<'PYEOF'
+import os, re, sys
+
+mk_path  = os.environ['MK_PATH']
+apk_fn   = os.environ['APK_FN']
+abi_name = os.environ.get('ABI_NAME', '')
+lib_paths_raw = os.environ.get('LIB_PATHS', '')
+lib_paths = [l for l in lib_paths_raw.split('\n') if l]
+
+with open(mk_path, 'r') as f:
+    content = f.read()
+
+# 1) LOCAL_SRC_FILES → literal 替換
+content = re.sub(
+    r'^(LOCAL_SRC_FILES[ \t]*:=[ \t]*).*$',
+    lambda m: m.group(1) + apk_fn,
+    content,
+    flags=re.MULTILINE,
+)
+
+if abi_name:
+    # 2) LOCAL_TARGET_CPU_ABI
+    abi_line = f'LOCAL_TARGET_CPU_ABI := {abi_name}'
+    if re.search(r'^LOCAL_TARGET_CPU_ABI[ \t]*:=', content, re.MULTILINE):
+        content = re.sub(
+            r'^LOCAL_TARGET_CPU_ABI[ \t]*:=.*$',
+            abi_line,
+            content,
+            flags=re.MULTILINE,
+        )
+    else:
+        m = re.search(r'^include\s+\$\(BUILD_PREBUILT\)', content, re.MULTILINE)
+        if not m:
+            sys.stderr.write("MK_ANCHOR_MISSING\n")
+            sys.exit(2)
+        content = content[:m.start()] + abi_line + '\n' + content[m.start():]
+
+    # 3) LOCAL_PREBUILT_JNI_LIBS（多行）— 用 line-based 處理
+    lines = content.split('\n')
+    new_lines = []
+    insert_idx = None
+    in_old_block = False
+
+    for line in lines:
+        if not in_old_block and re.match(r'^LOCAL_PREBUILT_JNI_LIBS[ \t]*:=', line):
+            in_old_block = True
+            insert_idx = len(new_lines)
+            new_lines.append(None)   # placeholder
+            if not line.rstrip().endswith('\\'):
+                in_old_block = False
+            continue
+        if in_old_block:
+            if not line.rstrip().endswith('\\'):
+                in_old_block = False
+            continue
+        new_lines.append(line)
+
+    # 組新區塊
+    if lib_paths:
+        if len(lib_paths) == 1:
+            block = [f'LOCAL_PREBUILT_JNI_LIBS := libs/$(LOCAL_TARGET_CPU_ABI)/{lib_paths[0]}']
+        else:
+            block = ['LOCAL_PREBUILT_JNI_LIBS := \\']
+            for i, p in enumerate(lib_paths):
+                suffix = ' \\' if i < len(lib_paths) - 1 else ''
+                block.append(f'    libs/$(LOCAL_TARGET_CPU_ABI)/{p}{suffix}')
+    else:
+        block = ['LOCAL_PREBUILT_JNI_LIBS :=']
+
+    if insert_idx is not None:
+        new_lines = new_lines[:insert_idx] + block + new_lines[insert_idx + 1:]
+    else:
+        inserted = False
+        out = []
+        for line in new_lines:
+            if not inserted and re.match(r'^include\s+\$\(BUILD_PREBUILT\)', line):
+                out.extend(block)
+                out.append('')
+                inserted = True
+            out.append(line)
+        if not inserted:
+            sys.stderr.write("MK_ANCHOR_MISSING\n")
+            sys.exit(2)
+        new_lines = out
+
+    content = '\n'.join(new_lines)
+
+with open(mk_path, 'w') as f:
+    f.write(content)
+PYEOF
+  local rc=$?
+  set -e
+
+  if [[ ${rc} -eq 2 ]]; then
+    die "Android.mk 缺 \`include \$(BUILD_PREBUILT)\` 錨點，無法決定 LOCAL_TARGET_CPU_ABI / LOCAL_PREBUILT_JNI_LIBS 插入位置"
+  elif [[ ${rc} -ne 0 ]]; then
+    die "Android.mk 更新失敗（Python 處理階段）"
+  fi
+
+  # 印更新後的關鍵欄位
+  log "Android.mk 已更新："
+  local SRC_LINE ABI_LINE
+  SRC_LINE=$(grep -E '^LOCAL_SRC_FILES[ \t]*:=' "${mk_path}" | head -1)
+  log "  └─ ${SRC_LINE}"
+  if [[ -n "${LIBS_PATH}" ]]; then
+    ABI_LINE=$(grep -E '^LOCAL_TARGET_CPU_ABI[ \t]*:=' "${mk_path}" | head -1)
+    log "  └─ ${ABI_LINE}"
+    log "  └─ LOCAL_PREBUILT_JNI_LIBS:"
+    for f in "${LIB_FILES[@]}"; do
+      local rel="${f#${LIBS_PATH}/}"
+      log "       libs/\$(LOCAL_TARGET_CPU_ABI)/${rel}"
+    done
+  fi
+  ok "[${dev}] Android.mk 更新完成"
+}
+
 # ---------- 每台機種部署函式 ----------
 deploy_device() {
   local dev="$1"
@@ -188,6 +436,7 @@ deploy_device() {
   local MODULE_DIR="${REPO}/${EFFECTIVE_APK_SUBDIR}/${APP_NAME}"
   local APK_DEST_DIR="${MODULE_DIR}"
   local MK_PATH="${MODULE_DIR}/Android.mk"
+  local LIBS_REMOTE_DIR="${MODULE_DIR}/libs/${ABI_NAME}"   # 當 --libs 提供時用
 
   log "${CYAN}${SEP}${RESET}"
   log "${CYAN}  ▶  [${dev}] 開始部署${RESET}"
@@ -207,39 +456,31 @@ deploy_device() {
   copy_file "${APK_PATH}" "${APK_DEST_DIR}/"
   ok "[${dev}] APK 複製完成"
 
-  # 3. 更新 Android.mk 中的 LOCAL_SRC_FILES
-  info "[${dev}] 更新 Android.mk"
-  if ! $DRY_RUN; then
-    [[ -f "${MK_PATH}" ]] || die "找不到 Android.mk: ${MK_PATH}"
-    sed -i -E "s|^(LOCAL_SRC_FILES[[:space:]]*:=[[:space:]]*).*\.apk|\1${APK_FILENAME}|" "${MK_PATH}"
-    grep -q "${APK_FILENAME}" "${MK_PATH}" || die "Android.mk 更新失敗，請確認 LOCAL_SRC_FILES 行是否存在"
-    log "Android.mk 已更新為 ${APK_FILENAME}"
-  else
-    info "[DRY-RUN] sed 更新 ${MK_PATH} → LOCAL_SRC_FILES := ${APK_FILENAME}"
-  fi
-  ok "[${dev}] Android.mk 更新完成"
-  # 接續印出 .mk 內 LOCAL_SRC_FILES 行的實際內容（dry-run 顯示預期值）
-  if ! $DRY_RUN; then
-    local MK_LINE
-    MK_LINE=$(grep -E '^LOCAL_SRC_FILES[[:space:]]*:=' "${MK_PATH}" | head -1)
-    log "  └─ ${MK_PATH}"
-    log "     ${MK_LINE}"
-  else
-    log "  └─ (dry-run 預期) LOCAL_SRC_FILES := ${APK_FILENAME}"
+  # 3. 複製 libs 至 repo（僅當 --libs 提供）
+  if [[ -n "${LIBS_PATH}" ]]; then
+    info "[${dev}] 偵測 ABI 資料夾: ${ABI_NAME}"
+    deploy_libs "${dev}" "${LIBS_REMOTE_DIR}"
   fi
 
-  # 4. git add + commit + push
-  # 使用 --author 直接帶入 author 資訊，不修改 repo 的 git config
+  # 4. 更新 Android.mk（在所有 cp 結束之後才動）
+  info "[${dev}] 更新 Android.mk"
+  update_mk "${dev}" "${MK_PATH}"
+
+  # 5. git add + commit + push
   info "[${dev}] git commit & push"
+  local GIT_ADD_PATHS="'${EFFECTIVE_APK_SUBDIR}/${APP_NAME}/${APK_FILENAME}' '${EFFECTIVE_APK_SUBDIR}/${APP_NAME}/Android.mk'"
+  if [[ -n "${LIBS_PATH}" ]]; then
+    GIT_ADD_PATHS="${GIT_ADD_PATHS} '${EFFECTIVE_APK_SUBDIR}/${APP_NAME}/libs'"
+  fi
   run "cd '${REPO}' && \
-    git add '${EFFECTIVE_APK_SUBDIR}/${APP_NAME}/${APK_FILENAME}' '${EFFECTIVE_APK_SUBDIR}/${APP_NAME}/Android.mk' && \
+    git add ${GIT_ADD_PATHS} && \
     git commit --author='${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>' -m '${COMMIT_MSG}' && \
     git push origin master"
   ok "[${dev}] push 完成"
 
-  # 5. 部署後驗證；驗證失敗即視為該機種部署失敗，回傳非零
+  # 6. 部署後驗證；驗證失敗即視為該機種部署失敗，回傳非零
   if ! $NO_VERIFY; then
-    if ! verify_device "${dev}" "${REPO}" "${APK_DEST_DIR}" "${MK_PATH}"; then
+    if ! verify_device "${dev}" "${REPO}" "${APK_DEST_DIR}" "${MK_PATH}" "${LIBS_REMOTE_DIR}"; then
       log "${RED}${SEP}${RESET}"
       log "${RED}  ✗  [${dev}] 部署失敗（驗證未通過）${RESET}"
       log "${RED}${SEP}${RESET}\n\n"
@@ -254,10 +495,10 @@ deploy_device() {
 
 # ---------- 驗證函式 ----------
 verify_device() {
-  local dev="$1" repo="$2" apk_dir="$3" mk_path="$4"
+  local dev="$1" repo="$2" apk_dir="$3" mk_path="$4" libs_remote_dir="${5:-}"
   info "[${dev}] 驗證部署結果..."
   local ERRORS=0
-  local R_APK R_MK R_NAME R_EMAIL R_MSG
+  local R_APK R_MK R_ABI R_LIB_LIST R_LIB_FILES R_NAME R_EMAIL R_MSG
   local PASS_TAG="${GREEN}✓ PASS${RESET}"
   local FAIL_TAG="${RED}✗ FAIL${RESET}"
 
@@ -281,14 +522,82 @@ verify_device() {
     ERRORS=$(( ERRORS + 1 ))
   fi
 
-  log "--- 驗證 Android.mk ---"
+  log "--- 驗證 Android.mk LOCAL_SRC_FILES ---"
   if grep -q "${APK_FILENAME}" "${mk_path}" 2>/dev/null; then
-    log "  ✓ Android.mk 已更新為 ${APK_FILENAME}"
+    log "  ✓ LOCAL_SRC_FILES 已更新為 ${APK_FILENAME}"
     R_MK="${PASS_TAG}"
   else
-    log "  ✗ Android.mk 未包含 ${APK_FILENAME}"
+    log "  ✗ LOCAL_SRC_FILES 未包含 ${APK_FILENAME}"
     R_MK="${FAIL_TAG}"
     ERRORS=$(( ERRORS + 1 ))
+  fi
+
+  # ---------- 以下三項僅當 --libs 提供時驗證 ----------
+  if [[ -n "${LIBS_PATH}" ]]; then
+    log "--- 驗證 Android.mk LOCAL_TARGET_CPU_ABI ---"
+    local ABI_LINE_VAL
+    ABI_LINE_VAL=$(grep -E '^LOCAL_TARGET_CPU_ABI[ \t]*:=' "${mk_path}" 2>/dev/null | head -1 | sed -E 's|^LOCAL_TARGET_CPU_ABI[ \t]*:=[ \t]*||; s|[ \t]+$||')
+    if [[ "${ABI_LINE_VAL}" == "${ABI_NAME}" ]]; then
+      log "  ✓ LOCAL_TARGET_CPU_ABI = ${ABI_NAME}"
+      R_ABI="${PASS_TAG}"
+    else
+      log "  ✗ LOCAL_TARGET_CPU_ABI 不符! expected='${ABI_NAME}' got='${ABI_LINE_VAL}'"
+      R_ABI="${FAIL_TAG}"
+      ERRORS=$(( ERRORS + 1 ))
+    fi
+
+    log "--- 驗證 Android.mk LOCAL_PREBUILT_JNI_LIBS ---"
+    # 預期清單（變數形式 + 字母序，跟 update_mk 產生時邏輯一致）
+    local LIB_LIST_OK=true
+    local EXPECTED_LIB_LINE
+    for f in "${LIB_FILES[@]}"; do
+      local rel="${f#${LIBS_PATH}/}"
+      EXPECTED_LIB_LINE="libs/\$(LOCAL_TARGET_CPU_ABI)/${rel}"
+      if ! grep -qF "${EXPECTED_LIB_LINE}" "${mk_path}" 2>/dev/null; then
+        log "  ✗ LOCAL_PREBUILT_JNI_LIBS 缺項: ${EXPECTED_LIB_LINE}"
+        LIB_LIST_OK=false
+        ERRORS=$(( ERRORS + 1 ))
+      fi
+    done
+    if ${LIB_LIST_OK}; then
+      log "  ✓ LOCAL_PREBUILT_JNI_LIBS 含 ${#LIB_FILES[@]} 筆，全數對齊"
+      R_LIB_LIST="${PASS_TAG}"
+    else
+      R_LIB_LIST="${FAIL_TAG}"
+    fi
+
+    log "--- 驗證 JNI Libs files (MD5) ---"
+    local lib_pass=0 lib_fail=0
+    local FAILED_LIBS=()
+    for f in "${LIB_FILES[@]}"; do
+      local rel="${f#${LIBS_PATH}/}"
+      local remote="${libs_remote_dir}/${rel}"
+      if [[ ! -f "${remote}" ]]; then
+        FAILED_LIBS+=("${rel}  (missing)")
+        lib_fail=$(( lib_fail + 1 ))
+        continue
+      fi
+      local src_md5 dst_md5
+      src_md5=$(md5sum "${f}"      | awk '{print $1}')
+      dst_md5=$(md5sum "${remote}" | awk '{print $1}')
+      if [[ "${src_md5}" == "${dst_md5}" ]]; then
+        lib_pass=$(( lib_pass + 1 ))
+      else
+        FAILED_LIBS+=("${rel}  (MD5 mismatch)")
+        lib_fail=$(( lib_fail + 1 ))
+      fi
+    done
+    if [[ ${lib_fail} -eq 0 ]]; then
+      log "  ✓ ${lib_pass}/${#LIB_FILES[@]} libs MD5 全對"
+      R_LIB_FILES="${PASS_TAG}"
+    else
+      log "  ✗ ${lib_pass}/${#LIB_FILES[@]} libs MD5 對；失敗 ${lib_fail} 個："
+      for fl in "${FAILED_LIBS[@]}"; do
+        log "      ${fl}"
+      done
+      R_LIB_FILES="${FAIL_TAG}"
+      ERRORS=$(( ERRORS + 1 ))
+    fi
   fi
 
   log "--- 驗證 commit author ---"
@@ -335,6 +644,11 @@ verify_device() {
   log "${BOLD}--- 驗證結果摘要 [${dev}] ---${RESET}"
   log "  ${R_APK}    APK MD5"
   log "  ${R_MK}    Android.mk LOCAL_SRC_FILES"
+  if [[ -n "${LIBS_PATH}" ]]; then
+    log "  ${R_ABI}    Android.mk LOCAL_TARGET_CPU_ABI = ${ABI_NAME}"
+    log "  ${R_LIB_LIST}    Android.mk LOCAL_PREBUILT_JNI_LIBS (${#LIB_FILES[@]} entries)"
+    log "  ${R_LIB_FILES}    JNI Libs files (${#LIB_FILES[@]} files MD5)"
+  fi
   log "  ${R_NAME}    Commit Author Name"
   log "  ${R_EMAIL}    Commit Author Email"
   log "  ${R_MSG}    Commit Message"

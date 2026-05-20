@@ -2,10 +2,12 @@
 <!--
   deploy_plan.xml — 批次部署計畫
   每個 <task> 代表一次 deploy_apk.sh 呼叫（單一 app × 一或多個機種）
-  <apk> 填入 toBeUploaded/ 下的完整路徑（腳本同層，zip 解開後即存在）
+  <apk>     填入 toBeUploaded/ 下的 APK 完整路徑（腳本同層）
+  <libs>    （可選）ABI 資料夾路徑；basename 即 LOCAL_TARGET_CPU_ABI
+            內部含任何檔案（含子目錄、無副檔名都接受）
   <devices> 內每個 <device> 填入 devices.conf 中定義的機種名稱（小寫）
 
-  範例（僅供格式參考，非有效設定）:
+  範例 1（純 APK）:
 
   <task>
     <app>KeyMappingManager</app>
@@ -16,6 +18,19 @@
       <device>rk26s</device>
       <device>rk26u</device>
       <device>rs36s</device>
+    </devices>
+  </task>
+
+  範例 2（含 JNI libs）:
+
+  <task>
+    <app>ReaderService_CipherLab</app>
+    <apk>~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk</apk>
+    <libs>~/apk_deploy/toBeUploaded/ReaderService_CipherLab/rs38t/arm64-v8a</libs>
+    <author>Bob</author>
+    <message>SW_CLUTY-XXX : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
+    <devices>
+      <device>rs38t</device>
     </devices>
   </task>
 

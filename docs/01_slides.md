@@ -27,8 +27,9 @@ layout: cover
 2. **解法概覽** — 工具能做什麼、不做什麼
 3. **架構與流程** — 三個腳本 × 設定檔分離
 4. **Demo** — dry-run、實機部署、批次
-5. **設定維護** — 新增 Model  / 新增 Author
-6. **資源指引** — 文件、log、回報方式
+5. **JNI Libs 部署** — `--libs` 一次帶上資源檔（v1.0.2 新增）
+6. **設定維護** — 新增 Model  / 新增 Author
+7. **資源指引** — 文件、log、回報方式
 
 ---
 
@@ -91,8 +92,18 @@ apk_deploy/
        ↓
 [4] git add → git commit --author=... → git push
        ↓
-[5] 自動驗證 5 項（可 --no-verify 略過）
+[3.5] cp libs 到 vendor/cipherlab/<APP>/libs/<ABI>/  (僅當 --libs)
+        逐檔 [ Added ] / [Updated] / [Skipped] (依 MD5)
+       ↓
+[4] 更新 Android.mk
+       LOCAL_SRC_FILES  / LOCAL_TARGET_CPU_ABI(libs) /
+       LOCAL_PREBUILT_JNI_LIBS(libs)
+       ↓
+[5] git add → git commit --author=... → git push
+       ↓
+[6] 自動驗證（可 --no-verify 略過）— 純 APK 5 項，含 libs 8 項
        APK MD5 / Android.mk LOCAL_SRC_FILES /
+       (LOCAL_TARGET_CPU_ABI / LOCAL_PREBUILT_JNI_LIBS / lib files MD5) /
        commit author name / commit author email / commit message
 ```
 
@@ -160,7 +171,7 @@ cd ~/apk_deploy
   ...
 ====== Deploy Result ======
   總計: 3  成功: 3  失敗: 0
-  Log: logs/deploy_20260518_143022.log
+  Log: logs/deploy-Caspar-KeyMappingManager-20260518_143022.log
 ```
 
 ---
@@ -211,7 +222,78 @@ cd ~/apk_deploy
 
 ---
 
-## 5. 設定維護：新增機種
+## 5. JNI Libs 部署（v1.0.2 新增）
+
+某些 app 需要附帶外部資源檔（`.so` libs、`.json` 設定、無副檔名資源…），用 **`--libs <ABI 資料夾路徑>`** 一次帶上。
+
+```bash
+./deploy_apk.sh \
+  --app  ReaderService_CipherLab \
+  --apk  ~/.../toBeUploaded/ReaderService_CipherLab_V1_3_104.apk \
+  --libs ~/.../toBeUploaded/ReaderService_CipherLab/rs38t/arm64-v8a \
+  --author Caspar \
+  --message "SW_CLUTY-XXX : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
+  --device rs38t
+```
+
+- `--libs` 路徑 **basename 即 `LOCAL_TARGET_CPU_ABI`**（範例：`arm64-v8a`）
+- 內部檔案／階層／格式 **完全由 RD 自理**，腳本不解讀
+
+---
+
+## 5.1 Libs 行為三準則
+
+1. **絕不刪除 remote 任何檔案／資料夾**
+2. **絕不操作資料夾本身**（不傳遞空資料夾）
+3. **檔案動作**：
+
+| local | remote | 動作 |
+|---|---|---|
+| 有 | 無 | `[ Added ]` 新增 |
+| 有 | 有 + MD5 異 | `[Updated]` 覆蓋 |
+| 有 | 有 + MD5 同 | `[Skipped]` 略過 |
+| 無 | 有 | 保留 remote |
+
+Hidden 檔（`.` 開頭）與 symlink **一律跳過**。
+
+---
+
+## 5.2 .mk 自動維護
+
+含 `--libs` 部署時，`Android.mk` 額外維護 2 個欄位（缺則自動 insert 到 `include $(BUILD_PREBUILT)` 之前）：
+
+```mk
+LOCAL_TARGET_CPU_ABI    := arm64-v8a
+LOCAL_PREBUILT_JNI_LIBS := \
+    libs/$(LOCAL_TARGET_CPU_ABI)/README \
+    libs/$(LOCAL_TARGET_CPU_ABI)/config.json \
+    libs/$(LOCAL_TARGET_CPU_ABI)/libIAC.so \
+    libs/$(LOCAL_TARGET_CPU_ABI)/libbarcodereader.so \
+    libs/$(LOCAL_TARGET_CPU_ABI)/sub/libdeep.so
+```
+
+清單來源：**remote `libs/<ABI>/` 內全部檔案**（依字母升序、大小寫敏感），不限副檔名。
+
+---
+
+## 5.3 驗證項目擴充
+
+純 APK 5 項，**含 libs 8 項**：
+
+```
+✓ PASS    APK MD5
+✓ PASS    Android.mk LOCAL_SRC_FILES
+✓ PASS    Android.mk LOCAL_TARGET_CPU_ABI = arm64-v8a       (新)
+✓ PASS    Android.mk LOCAL_PREBUILT_JNI_LIBS (5 entries)    (新)
+✓ PASS    JNI Libs files (5 files MD5)                      (新)
+✓ PASS    Commit Author Name / Email / Message
+```
+
+Lib 驗證失敗時列出**全部**不符檔案。
+
+---
+
+## 6. 設定維護：新增機種
 
 只改 **`config/devices.conf`**，腳本不動：
 
@@ -236,7 +318,7 @@ DEVICE_rk25_APK_SUBDIR="android/vendor/cipherlab/prebuilt/rk25"
 
 ---
 
-## 5.1 設定維護：新增 / 修改 Author
+## 6.1 設定維護：新增 / 修改 Author
 
 只改 **`config/authors.conf`**：
 
@@ -255,7 +337,7 @@ XML / CLI 引用到不存在的 key 會**提前報錯**並終止
 
 ---
 
-## 6. 資源指引
+## 7. 資源指引
 
 | 需要 | 位置 |
 |---|---|
@@ -264,7 +346,7 @@ XML / CLI 引用到不存在的 key 會**提前報錯**並終止
 | Demo 步驟 | `docs/presentation/04_demo_script.md` |
 | FAQ | `docs/presentation/05_faq.md` |
 | 新人 / 新機種 checklist | `docs/presentation/06_onboarding_checklist.md` |
-| Log（每次執行） | `apk_deploy/logs/deploy_YYYYMMDD_HHMMSS.log` |
+| Log（每次執行） | `apk_deploy/logs/deploy-<Author>-<App>-YYYYMMDD_HHMMSS.log` |
 | Repo | `git@gitlab.cipherlab.com.tw:app-dev/android/automation/scriptapkdeploy.git` |
 
 ---

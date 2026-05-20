@@ -12,6 +12,7 @@
 #     <task>
 #       <app>KeyMappingManager</app>
 #       <apk>~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk</apk>
+#       <libs>~/apk_deploy/toBeUploaded/.../arm64-v8a</libs>   <!-- 可選 -->
 #       <author>Bob</author>
 #       <message>SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3</message>
 #       <devices>
@@ -53,7 +54,10 @@ command -v python3 &>/dev/null || {
 }
 
 # ---------- 用 python3 解析 XML，輸出為 task 清單 ----------
-# 每個 task 輸出一行，格式: APP\tAPK\tAUTHOR\tMESSAGE\tDEV1 DEV2 DEV3
+# 每個 task 輸出一行，欄位以 ASCII Unit Separator (0x1F) 分隔
+# 不用 \t 是因為 bash IFS 把 TAB 視為 whitespace，連續 TAB 不會產生 empty field
+# 順序: APP, APK, LIBS, AUTHOR, MESSAGE, DEV1 DEV2 DEV3
+# LIBS 欄位為空字串時表示該 task 不部署 libs
 TASK_LIST=$(python3 - "${PLAN_FILE}" << 'PYEOF'
 import sys, xml.etree.ElementTree as ET
 
@@ -70,6 +74,12 @@ if not tasks:
     print("ERROR: deploy_plan.xml 中找不到任何 <task>", file=sys.stderr)
     sys.exit(1)
 
+def get_optional(task, tag):
+    el = task.find(tag)
+    if el is None:
+        return ''
+    return (el.text or '').strip()
+
 for i, task in enumerate(tasks, 1):
     def require(tag):
         el = task.find(tag)
@@ -80,6 +90,7 @@ for i, task in enumerate(tasks, 1):
 
     app     = require('app')
     apk     = require('apk')
+    libs    = get_optional(task, 'libs')   # 可選
     author  = require('author')
     message = require('message')
 
@@ -92,7 +103,8 @@ for i, task in enumerate(tasks, 1):
         print(f"ERROR: task #{i} <devices> 內沒有任何 <device>", file=sys.stderr)
         sys.exit(1)
 
-    print(f"{app}\t{apk}\t{author}\t{message}\t{' '.join(devices)}")
+    SEP = '\x1f'   # ASCII Unit Separator
+    print(f"{app}{SEP}{apk}{SEP}{libs}{SEP}{author}{SEP}{message}{SEP}{' '.join(devices)}")
 PYEOF
 )
 
@@ -104,15 +116,21 @@ echo ""
 TOTAL=0; PASS=0; FAIL=0
 FAILED_TASKS=()
 
-while IFS=$'\t' read -r app apk author message devices_str; do
+while IFS=$'\x1f' read -r app apk libs author message devices_str; do
   TOTAL=$(( TOTAL + 1 ))
   echo -e "${BOLD}--- Task ${TOTAL}: ${app} ---${RESET}"
 
   read -ra device_arr <<< "${devices_str}"
 
+  LIBS_FLAG=()
+  if [[ -n "${libs}" ]]; then
+    LIBS_FLAG=( --libs "${libs}" )
+  fi
+
   if bash "${DEPLOY_SCRIPT}" \
        --app     "${app}" \
        --apk     "${apk}" \
+       "${LIBS_FLAG[@]}" \
        --author  "${author}" \
        --message "${message}" \
        --device  "${device_arr[@]}" \

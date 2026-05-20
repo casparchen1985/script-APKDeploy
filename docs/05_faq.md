@@ -202,7 +202,7 @@ vendor/cipherlab/key_mapping_mgr/   ← module 目錄
 
 **短答**：兩個來源：
 
-1. `~/apk_deploy/logs/deploy_YYYYMMDD_HHMMSS.log`（每次執行）
+1. `~/apk_deploy/logs/deploy-<AuthorKey>-<AppName>-YYYYMMDD_HHMMSS.log`（每次執行）
 2. 各機種 repo 的 `git log`（commit author / message / hash）
 
 **延伸**：log 檔不進版控（在 `.gitignore`），目前**僅存在 server 上**。長期保留 / 集中分析需要另外設計（例如 rsync 到中央 storage）。
@@ -288,7 +288,80 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 
 ---
 
-## G. 路線圖（如果被問到「未來會加什麼」）
+## G. JNI Libs 部署（v1.0.2 新增）
+
+### Q24. `--libs` 路徑要指到哪一層？
+
+**短答**：指到 **ABI 資料夾本身**（如 `arm64-v8a`），不是 ABI 的 parent。
+
+```
+toBeUploaded/<App>/<dev>/arm64-v8a/    ← --libs 指這裡
+└── (內部任何結構由 RD 自理)
+```
+
+basename 就會被腳本拿去當 `LOCAL_TARGET_CPU_ABI` 的值，所以 ABI 資料夾名稱就**等於**該 ABI 設定。
+
+---
+
+### Q25. 內部可以放哪些檔案？
+
+**短答**：**任何檔案**。`.so` / `.txt` / `.json` / 沒副檔名 / 多層子目錄都接受。
+
+腳本只做兩件事：
+- 跳過 hidden 檔（`.` 開頭）與 symlink
+- 遞迴枚舉其他所有檔案
+
+---
+
+### Q26. 重新部署時，舊的 lib 會被刪嗎？
+
+**短答**：**不會**。腳本絕不刪除 remote 既有檔案／資料夾。
+
+逐檔判定：
+- local 有，remote 無 → 新增
+- local 有，remote MD5 同 → 略過
+- local 有，remote MD5 異 → 覆蓋
+- local 無，remote 有 → **保留**
+
+---
+
+### Q27. `LOCAL_PREBUILT_JNI_LIBS` 的清單怎麼來的？
+
+**短答**：**部署完 cp 結束後**，掃描 remote `libs/<ABI>/` 下**全部檔案**，組成清單寫進 `.mk`。
+
+因為 Q26「不刪 remote」，所以清單會自動包含「舊 lib + 新 lib + 沒動的 lib」。RD 不用維護這個列表。
+
+---
+
+### Q28. `.mk` 原本沒有 `LOCAL_TARGET_CPU_ABI` 或 `LOCAL_PREBUILT_JNI_LIBS` 行怎麼辦？
+
+**短答**：腳本**自動 insert** 到 `include $(BUILD_PREBUILT)` 之前。
+
+若連 `include $(BUILD_PREBUILT)` 都找不到 → `die`（.mk 結構不合預期）。
+
+---
+
+### Q29. 兩個機種的 lib 不一樣（一個要 arm64-v8a 一個要 armeabi-v7a）？
+
+**短答**：分開跑兩次 `deploy_apk.sh`，各指各自的 `--libs`。
+
+目前一次部署只支援單一 ABI（即 `--libs` 直接指到的那個資料夾）。
+
+---
+
+### Q30. 我可以把 `arm64-v8a/` 與 `armeabi-v7a/` 放在同一個 parent 下嗎？
+
+**短答**：可以。腳本不在意 `--libs` 同層 sibling 資料夾有什麼，只看 `--libs` 直接指到的那個。
+
+```
+toBeUploaded/<App>/
+├── arm64-v8a/      ← --libs 指這裡部署 arm64
+└── armeabi-v7a/    ← 下次部署用 --libs 指這裡
+```
+
+---
+
+## H. 路線圖（如果被問到「未來會加什麼」）
 
 - **CI 整合**：build server build 完自動丟 staging（需求待確認）
 - **驗證擴充**：apksigner 簽章、aapt 版號比對（低風險，可隨時加）
