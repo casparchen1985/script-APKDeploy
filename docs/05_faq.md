@@ -38,7 +38,7 @@
 **短答**：Ctrl+C 中斷時，**已完成的機種已 push 出去**，未完成的不會動到。Staging APK 會被保留供重試。
 
 **延伸**：
-- 若中斷時剛好在某機種的中段（例如 sed 改完但 push 失敗），**該機種會留下 dirty working tree**，需手動 `git checkout .` 或 `git reset --hard origin/master`。
+- 若中斷時剛好在某機種的中段（例如 Android.mk 改完但 push 失敗），**該機種會留下 dirty working tree**，需手動 `git checkout .` 或 `git reset --hard origin/master`。
 - 重跑相同指令時，腳本會 `git checkout master && git clean -fd && git pull`，**會清掉 dirty state**。
 
 ---
@@ -51,7 +51,7 @@
 
 **延伸**：
 - Staging APK 會被保留（因為「全成功」條件未達成）。
-- 修好問題後**重跑相同指令**即可——已成功的機種會被 `git pull` 對齊，再次跑 sed 不會產生差異，git commit 會因為 nothing to commit 而失敗、但這代表已是最新狀態。
+- 修好問題後**重跑相同指令**即可——已成功的機種會被 `git pull` 對齊，再次跑 Android.mk 更新不會產生差異，git commit 會因為 nothing to commit 而失敗、但這代表已是最新狀態。
 - 真正想跳過已成功機種，請從 `--device` 拿掉它們。
 
 ---
@@ -284,7 +284,7 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 
 **短答**：**不會**。腳本只在自己這次部署的範圍內 commit，`git pull origin master` 會先拉下別人的 commit。
 
-**延伸**：但若別人剛好 push 了相同 `Android.mk` 的改動，腳本的 sed 可能會產生 merge conflict — 此時 `git pull` 失敗，腳本 die。
+**延伸**：但若別人剛好 push 了相同 `Android.mk` 的改動，腳本的 Python 改寫可能會產生 merge conflict — 此時 `git pull` 失敗，腳本 die。
 
 ---
 

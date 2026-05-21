@@ -39,8 +39,8 @@
 
 ### A.5 閱讀必要文件
 - [ ] 讀過 `README.md`（理解 APK 保留策略、Android.mk 更新規則）
-- [ ] 拿一份 `docs/presentation/03_quickref_cheatsheet.md`（可印出來）
-- [ ] 知道 `docs/presentation/05_faq.md` 在哪（遇到狀況先翻）
+- [ ] 拿一份 `docs/03_quickref_cheatsheet.md`（可印出來）
+- [ ] 知道 `docs/05_faq.md` 在哪（遇到狀況先翻）
 
 ### A.6 加入聯絡群組
 - [ ] 加入 deploy 通知群組 / channel
@@ -86,7 +86,7 @@
 - [ ] 拿掉 `--dry-run` 實際跑一次，確認驗證 5 項全 ✓
 
 ### B.6 文件同步
-- [ ] 更新 `docs/presentation/03_quickref_cheatsheet.md` 的機種清單表
+- [ ] 更新 `docs/03_quickref_cheatsheet.md` 的機種清單表
 - [ ] 通知團隊新機種已可用
 
 ---

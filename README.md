@@ -11,7 +11,7 @@ apk_deploy/                  ← git clone 後的根目錄，cd 進來直接執�
 ├── deploy_apk.sh            # 核心部署腳本（單一 app × 多機種）
 ├── batch_deploy.sh          # 批次包裝腳本（讀取 deploy_plan.xml）
 ├── verify_deploy.sh         # 獨立驗證腳本（不執行部署，僅檢查結果）
-├── deploy_plan.xml          # 批次部署計畫範例
+├── deploy_plan.xml.template # 批次計畫範本（複製為 deploy_plan.xml 後編輯）
 ├── toBeUploaded/            # APK + libs staging 區（全機種成功後自動清除）
 │   └── .gitkeep
 ├── config/
@@ -28,7 +28,7 @@ apk_deploy/                  ← git clone 後的根目錄，cd 進來直接執�
 | 項目 | 說明 |
 |------|------|
 | 執行環境 | Upload Server（Ubuntu，IP `192.168.8.17`，帳號 `app_dev`）上直接執行 |
-| 必要工具 | `git`、`bash 4.0+`、`md5sum`、`sed`、`python3`（批次部署用） |
+| 必要工具 | `git`、`bash 4.0+`、`md5sum`、`python3`（更新 Android.mk + 批次解析 XML 用） |
 | RD 操作 | 將 APK 以 `scp` 上傳至 server 的 `toBeUploaded/`，再 ssh 進 server 執行腳本 |
 
 ---

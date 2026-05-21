@@ -237,9 +237,9 @@ LOCAL_PREBUILT_JNI_LIBS := \
 ```
 ✓ PASS    APK MD5
 ✓ PASS    Android.mk LOCAL_SRC_FILES
-✓ PASS    Android.mk LOCAL_TARGET_CPU_ABI = arm64-v8a    (--libs)
-✓ PASS    Android.mk LOCAL_PREBUILT_JNI_LIBS             (--libs)
-✓ PASS    JNI Libs files                                 (--libs)
+✓ PASS    Android.mk LOCAL_TARGET_CPU_ABI = arm64-v8a            (--libs)
+✓ PASS    Android.mk LOCAL_PREBUILT_JNI_LIBS (N entries from remote) (--libs)
+✓ PASS    JNI Libs files (N files MD5 vs staging)                (--libs)
 ✓ PASS    Commit Author Name
 ✓ PASS    Commit Author Email
 ✓ PASS    Commit Message
