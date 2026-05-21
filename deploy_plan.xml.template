@@ -21,14 +21,14 @@
     </devices>
   </task>
 
-  範例 2（含 JNI libs）:
+  範例 2（含 JNI libs；多一個 <libs> 欄位）:
 
   <task>
     <app>ReaderService_CipherLab</app>
     <apk>~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk</apk>
     <libs>~/apk_deploy/toBeUploaded/ReaderService_CipherLab/rs38t/arm64-v8a</libs>
     <author>Bob</author>
-    <message>SW_CLUTY-XXX : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
+    <message>SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
     <devices>
       <device>rs38t</device>
     </devices>

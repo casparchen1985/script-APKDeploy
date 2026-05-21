@@ -74,7 +74,8 @@ APK_PATH="${APK_PATH/#\~/$HOME}"
 
 # --libs 驗證 + ABI 偵測（optional）— 跟 deploy_apk.sh 邏輯一致
 ABI_NAME=""
-LIB_FILES=()
+LIB_FILES=()          # staging 來源檔案（MD5 比對來源）
+REMOTE_LIB_FILES=()   # 每台機種 remote libs/<ABI>/ 真實清單（在 for 迴圈內 enumerate）
 if [[ -n "${LIBS_PATH}" ]]; then
   LIBS_PATH="${LIBS_PATH/#\~/$HOME}"
   LIBS_PATH="${LIBS_PATH%/}"
@@ -181,6 +182,14 @@ for dev in "${DEVICES[@]}"; do
 
   # --- libs 相關（只在 --libs 提供時驗證）---
   if [[ -n "${LIBS_PATH}" ]]; then
+    # Enumerate remote libs/<ABI>/，這份才是 .mk 應該對齊的清單
+    REMOTE_LIB_FILES=()
+    if [[ -d "${LIBS_REMOTE_DIR}" ]]; then
+      while IFS= read -r -d '' f; do
+        REMOTE_LIB_FILES+=("$f")
+      done < <(find "${LIBS_REMOTE_DIR}" -type f -not -path '*/.*' -print0 2>/dev/null | LC_ALL=C sort -z)
+    fi
+
     log "--- 驗證 Android.mk LOCAL_TARGET_CPU_ABI ---"
     ABI_LINE_VAL=$(grep -E '^LOCAL_TARGET_CPU_ABI[ \t]*:=' "${MK_PATH}" 2>/dev/null | head -1 | sed -E 's|^LOCAL_TARGET_CPU_ABI[ \t]*:=[ \t]*||; s|[ \t]+$||')
     if [[ "${ABI_LINE_VAL}" == "${ABI_NAME}" ]]; then
@@ -193,21 +202,28 @@ for dev in "${DEVICES[@]}"; do
     fi
 
     log "--- 驗證 Android.mk LOCAL_PREBUILT_JNI_LIBS ---"
-    LIB_LIST_OK=true
-    for f in "${LIB_FILES[@]}"; do
-      rel="${f#${LIBS_PATH}/}"
-      EXPECTED_LIB_LINE="libs/\$(LOCAL_TARGET_CPU_ABI)/${rel}"
-      if ! grep -qF "${EXPECTED_LIB_LINE}" "${MK_PATH}" 2>/dev/null; then
-        log "  ✗ LOCAL_PREBUILT_JNI_LIBS 缺項: ${EXPECTED_LIB_LINE}"
-        LIB_LIST_OK=false
-        ERRORS=$(( ERRORS+1 ))
-      fi
-    done
-    if ${LIB_LIST_OK}; then
-      log "  ✓ LOCAL_PREBUILT_JNI_LIBS 含 ${#LIB_FILES[@]} 筆，全數對齊"
-      R_LIB_LIST="${PASS_TAG}"
-    else
+    # 預期清單來源：REMOTE_LIB_FILES（remote 真實清單）
+    if [[ ${#REMOTE_LIB_FILES[@]} -eq 0 ]]; then
+      log "  ✗ remote libs 目錄 ${LIBS_REMOTE_DIR} 不存在或為空，無法核對清單"
       R_LIB_LIST="${FAIL_TAG}"
+      ERRORS=$(( ERRORS+1 ))
+    else
+      LIB_LIST_OK=true
+      for f in "${REMOTE_LIB_FILES[@]}"; do
+        rel="${f#${LIBS_REMOTE_DIR}/}"
+        EXPECTED_LIB_LINE="libs/\$(LOCAL_TARGET_CPU_ABI)/${rel}"
+        if ! grep -qF "${EXPECTED_LIB_LINE}" "${MK_PATH}" 2>/dev/null; then
+          log "  ✗ LOCAL_PREBUILT_JNI_LIBS 缺項: ${EXPECTED_LIB_LINE}"
+          LIB_LIST_OK=false
+          ERRORS=$(( ERRORS+1 ))
+        fi
+      done
+      if ${LIB_LIST_OK}; then
+        log "  ✓ LOCAL_PREBUILT_JNI_LIBS 含 ${#REMOTE_LIB_FILES[@]} 筆，全數對齊"
+        R_LIB_LIST="${PASS_TAG}"
+      else
+        R_LIB_LIST="${FAIL_TAG}"
+      fi
     fi
 
     log "--- 驗證 JNI Libs files (MD5) ---"
@@ -289,8 +305,8 @@ for dev in "${DEVICES[@]}"; do
   log "  ${R_MK}    Android.mk LOCAL_SRC_FILES"
   if [[ -n "${LIBS_PATH}" ]]; then
     log "  ${R_ABI}    Android.mk LOCAL_TARGET_CPU_ABI = ${ABI_NAME}"
-    log "  ${R_LIB_LIST}    Android.mk LOCAL_PREBUILT_JNI_LIBS (${#LIB_FILES[@]} entries)"
-    log "  ${R_LIB_FILES}    JNI Libs files (${#LIB_FILES[@]} files MD5)"
+    log "  ${R_LIB_LIST}    Android.mk LOCAL_PREBUILT_JNI_LIBS (${#REMOTE_LIB_FILES[@]} entries from remote)"
+    log "  ${R_LIB_FILES}    JNI Libs files (${#LIB_FILES[@]} files MD5 vs staging)"
   fi
   log "  ${R_NAME}    Commit Author Name"
   log "  ${R_EMAIL}    Commit Author Email"

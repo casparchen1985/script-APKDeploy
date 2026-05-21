@@ -128,7 +128,8 @@ fi
 # ---------- --libs 驗證 + ABI 偵測（optional）----------
 # 注意：必須在 APK_STAGING_DIR 設好之後執行，因為要做 staging 路徑限制檢查
 ABI_NAME=""
-LIB_FILES=()
+LIB_FILES=()          # staging 來源檔案清單（cp 上傳用 + MD5 比對來源）
+REMOTE_LIB_FILES=()   # remote libs/<ABI>/ 真實清單（每台機種 cp 完後 enumerate，寫入 .mk 用）
 if [[ -n "${LIBS_PATH}" ]]; then
   LIBS_PATH="${LIBS_PATH/#\~/$HOME}"
   LIBS_PATH="${LIBS_PATH%/}"   # 去除末尾斜線方便 basename
@@ -223,6 +224,44 @@ run() {
   fi
 }
 
+# ---------- enumerate remote libs ----------
+# cp 完成後執行，掃描 remote libs/<ABI>/ 內所有檔案（hidden / symlink 跳過、LC_ALL=C 排序），
+# 結果寫入 global REMOTE_LIB_FILES（remote 絕對路徑）。LOCAL_PREBUILT_JNI_LIBS 以此清單為準。
+#
+# Dry-run 時實際沒 cp，因此 union(pre-existing remote, staging 即將 cp 上去的檔案) 來預測 cp 後狀態。
+enumerate_remote_libs() {
+  local dev="$1"
+  local remote_dir="$2"
+  REMOTE_LIB_FILES=()
+
+  declare -A rel_set
+
+  # 已存在 remote 的檔案
+  if [[ -d "${remote_dir}" ]]; then
+    while IFS= read -r -d '' f; do
+      rel_set["${f#${remote_dir}/}"]=1
+    done < <(find "${remote_dir}" -type f -not -path '*/.*' -print0 2>/dev/null)
+  fi
+
+  # Dry-run 預測：union 加上 staging 將 cp 上去的檔案
+  if $DRY_RUN; then
+    for sf in "${LIB_FILES[@]}"; do
+      rel_set["${sf#${LIBS_PATH}/}"]=1
+    done
+  fi
+
+  while IFS= read -r rel; do
+    [[ -z "${rel}" ]] && continue
+    REMOTE_LIB_FILES+=("${remote_dir}/${rel}")
+  done < <(printf '%s\n' "${!rel_set[@]}" | LC_ALL=C sort)
+
+  if $DRY_RUN; then
+    log "[${dev}] remote libs/${ABI_NAME}/ 預測共 ${#REMOTE_LIB_FILES[@]} 檔（dry-run union）"
+  else
+    log "[${dev}] remote libs/${ABI_NAME}/ 實際共 ${#REMOTE_LIB_FILES[@]} 檔（將寫入 LOCAL_PREBUILT_JNI_LIBS）"
+  fi
+}
+
 # ---------- libs 部署函式 ----------
 # 逐檔判定 Added / Updated / Skipped，並印到 log。
 # 絕不刪除 remote 既有檔案/資料夾；空子資料夾不傳遞。
@@ -284,6 +323,7 @@ deploy_libs() {
 update_mk() {
   local dev="$1"
   local mk_path="$2"
+  local remote_libs_dir="${3:-}"   # cp 後 enumerate 的 remote libs/<ABI>/
 
   if $DRY_RUN; then
     info "[DRY-RUN] 更新 ${mk_path}"
@@ -292,8 +332,8 @@ update_mk() {
     if [[ -n "${LIBS_PATH}" ]]; then
       log "     LOCAL_TARGET_CPU_ABI := ${ABI_NAME}"
       log "     LOCAL_PREBUILT_JNI_LIBS:"
-      for f in "${LIB_FILES[@]}"; do
-        local rel="${f#${LIBS_PATH}/}"
+      for f in "${REMOTE_LIB_FILES[@]}"; do
+        local rel="${f#${remote_libs_dir}/}"
         log "       libs/\$(LOCAL_TARGET_CPU_ABI)/${rel}"
       done
     fi
@@ -303,10 +343,10 @@ update_mk() {
 
   [[ -f "${mk_path}" ]] || die "找不到 Android.mk: ${mk_path}"
 
-  # 收集 lib 相對路徑（一行一筆）給 python
+  # 收集 lib 相對路徑（一行一筆）給 python — 來源是 REMOTE_LIB_FILES（cp 後 enumerate 的真實 remote 清單）
   local libs_rel=""
   if [[ -n "${LIBS_PATH}" ]]; then
-    libs_rel=$(for f in "${LIB_FILES[@]}"; do echo "${f#${LIBS_PATH}/}"; done)
+    libs_rel=$(for f in "${REMOTE_LIB_FILES[@]}"; do echo "${f#${remote_libs_dir}/}"; done)
   fi
 
   set +e
@@ -422,8 +462,8 @@ PYEOF
     ABI_LINE=$(grep -E '^LOCAL_TARGET_CPU_ABI[ \t]*:=' "${mk_path}" | head -1)
     log "  └─ ${ABI_LINE}"
     log "  └─ LOCAL_PREBUILT_JNI_LIBS:"
-    for f in "${LIB_FILES[@]}"; do
-      local rel="${f#${LIBS_PATH}/}"
+    for f in "${REMOTE_LIB_FILES[@]}"; do
+      local rel="${f#${remote_libs_dir}/}"
       log "       libs/\$(LOCAL_TARGET_CPU_ABI)/${rel}"
     done
   fi
@@ -469,11 +509,13 @@ deploy_device() {
   if [[ -n "${LIBS_PATH}" ]]; then
     info "[${dev}] 偵測 ABI 資料夾: ${ABI_NAME}"
     deploy_libs "${dev}" "${LIBS_REMOTE_DIR}"
+    # cp 完成後 enumerate remote libs，這份清單會寫入 LOCAL_PREBUILT_JNI_LIBS
+    enumerate_remote_libs "${dev}" "${LIBS_REMOTE_DIR}"
   fi
 
   # 4. 更新 Android.mk（在所有 cp 結束之後才動）
   info "[${dev}] 更新 Android.mk"
-  update_mk "${dev}" "${MK_PATH}"
+  update_mk "${dev}" "${MK_PATH}" "${LIBS_REMOTE_DIR}"
 
   # 5. git add + commit + push
   info "[${dev}] git commit & push"
@@ -556,11 +598,11 @@ verify_device() {
     fi
 
     log "--- 驗證 Android.mk LOCAL_PREBUILT_JNI_LIBS ---"
-    # 預期清單（變數形式 + 字母序，跟 update_mk 產生時邏輯一致）
+    # 預期清單來源：REMOTE_LIB_FILES（cp 後 enumerate 的真實 remote 清單，跟 update_mk 寫入時一致）
     local LIB_LIST_OK=true
     local EXPECTED_LIB_LINE
-    for f in "${LIB_FILES[@]}"; do
-      local rel="${f#${LIBS_PATH}/}"
+    for f in "${REMOTE_LIB_FILES[@]}"; do
+      local rel="${f#${libs_remote_dir}/}"
       EXPECTED_LIB_LINE="libs/\$(LOCAL_TARGET_CPU_ABI)/${rel}"
       if ! grep -qF "${EXPECTED_LIB_LINE}" "${mk_path}" 2>/dev/null; then
         log "  ✗ LOCAL_PREBUILT_JNI_LIBS 缺項: ${EXPECTED_LIB_LINE}"
@@ -569,7 +611,7 @@ verify_device() {
       fi
     done
     if ${LIB_LIST_OK}; then
-      log "  ✓ LOCAL_PREBUILT_JNI_LIBS 含 ${#LIB_FILES[@]} 筆，全數對齊"
+      log "  ✓ LOCAL_PREBUILT_JNI_LIBS 含 ${#REMOTE_LIB_FILES[@]} 筆，全數對齊"
       R_LIB_LIST="${PASS_TAG}"
     else
       R_LIB_LIST="${FAIL_TAG}"
@@ -655,8 +697,8 @@ verify_device() {
   log "  ${R_MK}    Android.mk LOCAL_SRC_FILES"
   if [[ -n "${LIBS_PATH}" ]]; then
     log "  ${R_ABI}    Android.mk LOCAL_TARGET_CPU_ABI = ${ABI_NAME}"
-    log "  ${R_LIB_LIST}    Android.mk LOCAL_PREBUILT_JNI_LIBS (${#LIB_FILES[@]} entries)"
-    log "  ${R_LIB_FILES}    JNI Libs files (${#LIB_FILES[@]} files MD5)"
+    log "  ${R_LIB_LIST}    Android.mk LOCAL_PREBUILT_JNI_LIBS (${#REMOTE_LIB_FILES[@]} entries from remote)"
+    log "  ${R_LIB_FILES}    JNI Libs files (${#LIB_FILES[@]} files MD5 vs staging)"
   fi
   log "  ${R_NAME}    Commit Author Name"
   log "  ${R_EMAIL}    Commit Author Email"
