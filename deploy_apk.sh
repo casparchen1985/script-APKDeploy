@@ -487,6 +487,7 @@ deploy_device() {
   local MK_PATH="${MODULE_DIR}/Android.mk"
   local LIBS_REMOTE_DIR="${MODULE_DIR}/libs/${ABI_NAME}"   # 當 --libs 提供時用
 
+  log ""
   log "${CYAN}${SEP}${RESET}"
   log "${CYAN}  ▶  [${dev}] 開始部署${RESET}"
   log "${CYAN}${SEP}${RESET}"
@@ -534,14 +535,14 @@ deploy_device() {
     if ! verify_device "${dev}" "${REPO}" "${APK_DEST_DIR}" "${MK_PATH}" "${LIBS_REMOTE_DIR}"; then
       log "${RED}${SEP}${RESET}"
       log "${RED}  ✗  [${dev}] 部署失敗（驗證未通過）${RESET}"
-      log "${RED}${SEP}${RESET}\n\n"
+      log "${RED}${SEP}${RESET}\n"
       return 1
     fi
   fi
 
   log "${GREEN}${SEP}${RESET}"
   log "${GREEN}  ✔  [${dev}] 部署成功${RESET}"
-  log "${GREEN}${SEP}${RESET}\n\n"
+  log "${GREEN}${SEP}${RESET}\n"
 }
 
 # ---------- 驗證函式 ----------
