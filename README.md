@@ -123,7 +123,7 @@ ssh app_dev@192.168.8.17
 ./deploy_apk.sh \
   --app     ReaderService_CipherLab \
   --apk     ~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk \
-  --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/rs38t/arm64-v8a \
+  --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a \
   --author  Bob \
   --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
   --device  rs38t \
@@ -161,7 +161,7 @@ ssh app_dev@192.168.8.17
 ```
 toBeUploaded/
 └── ReaderService_Libs/
-    └── rs38t/
+    └── noHK/
         └── arm64-v8a/                ← --libs 指這裡
             ├── libbarcodereader.so
             ├── libIAC.so
@@ -252,7 +252,7 @@ toBeUploaded/
   <task>
     <app>ReaderService_CipherLab</app>
     <apk>~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk</apk>
-    <libs>~/apk_deploy/toBeUploaded/ReaderService_Libs/rs38t/arm64-v8a</libs>
+    <libs>~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a</libs>
     <author>Bob</author>
     <message>SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
     <devices>
@@ -275,7 +275,7 @@ toBeUploaded/
 ./verify_deploy.sh \
   --app     ReaderService_CipherLab \
   --apk     ~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk \
-  --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/rs38t/arm64-v8a \
+  --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a \
   --author  Bob \
   --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
   --device  rs38t

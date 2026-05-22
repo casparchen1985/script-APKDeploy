@@ -26,7 +26,7 @@
   <task>
     <app>ReaderService_CipherLab</app>
     <apk>~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk</apk>
-    <libs>~/apk_deploy/toBeUploaded/ReaderService_CipherLab/rs38t/arm64-v8a</libs>
+    <libs>~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a</libs>
     <author>Bob</author>
     <message>SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
     <devices>

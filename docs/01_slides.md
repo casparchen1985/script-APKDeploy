@@ -144,7 +144,7 @@ cd ~/apk_deploy
 ./deploy_apk.sh \
   --app     ReaderService_CipherLab \
   --apk     ~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk \
-  --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/rs38t/arm64-v8a \
+  --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a \
   --author  Caspar \
   --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
   --device  rs38t \
@@ -271,7 +271,7 @@ Lib 驗證失敗時會列出不符檔案。可用 `--no-verify` 略過驗證。
   <task>
     <app>ReaderService_CipherLab</app>
     <apk>~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk</apk>
-    <libs>~/apk_deploy/toBeUploaded/ReaderService_Libs/rs38t/arm64-v8a</libs>
+    <libs>~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a</libs>
     <author>Caspar</author>
     <message>SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
     <devices>
@@ -298,7 +298,7 @@ Lib 驗證失敗時會列出不符檔案。可用 `--no-verify` 略過驗證。
 ./verify_deploy.sh \
   --app     ReaderService_CipherLab \
   --apk     ~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk \
-  --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/rs38t/arm64-v8a \
+  --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a \
   --author  Caspar \
   --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
   --device  rs38t
