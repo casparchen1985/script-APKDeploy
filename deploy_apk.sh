@@ -492,9 +492,16 @@ deploy_device() {
   log "${CYAN}  ▶  [${dev}] 開始部署${RESET}"
   log "${CYAN}${SEP}${RESET}"
 
+  # 0. 預檢 remote 連線（純查詢，動 local 之前先確認 remote 通）
+  info "[${dev}] 預檢 remote 連線: git ls-remote origin master"
+  run "git -C '${REPO}' ls-remote --exit-code origin master >/dev/null" \
+    || { err "[${dev}] 無法連到 remote（git ls-remote 失敗），跳過此機種"; return 1; }
+  ok "[${dev}] remote 連線正常"
+
   # 1. git checkout master + clean + pull
   info "[${dev}] git checkout master && git clean -fd && git pull"
-  run "cd '${REPO}' && git checkout master && git clean -fd && git pull origin master"
+  run "cd '${REPO}' && git checkout master && git clean -fd && git pull origin master" \
+    || { err "[${dev}] git pull 失敗（exit code 非零），跳過此機種"; return 1; }
   ok "[${dev}] repo 已同步到最新 master"
 
   # 2. 複製 APK 至 repo（版號策略）
@@ -518,7 +525,7 @@ deploy_device() {
   info "[${dev}] 更新 Android.mk"
   update_mk "${dev}" "${MK_PATH}" "${LIBS_REMOTE_DIR}"
 
-  # 5. git add + commit + push
+  # 5. git add + commit + push（commit 與 push 分開檢查 exit code）
   info "[${dev}] git commit & push"
   local GIT_ADD_PATHS="'${EFFECTIVE_APK_SUBDIR}/${APP_NAME}/${APK_FILENAME}' '${EFFECTIVE_APK_SUBDIR}/${APP_NAME}/Android.mk'"
   if [[ -n "${LIBS_PATH}" ]]; then
@@ -526,8 +533,24 @@ deploy_device() {
   fi
   run "cd '${REPO}' && \
     git add ${GIT_ADD_PATHS} && \
-    git commit --author='${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>' -m '${COMMIT_MSG}' && \
-    git push origin master"
+    git commit --author='${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>' -m '${COMMIT_MSG}'" \
+    || { err "[${dev}] git add / commit 失敗（exit code 非零），跳過此機種"; return 1; }
+
+  # commit 已建立；push 失敗時保留 local commit、顯性提示 RD 手動處理
+  local LOCAL_HASH
+  LOCAL_HASH=$(git -C "${REPO}" rev-parse --short HEAD 2>/dev/null || echo "?")
+
+  run "cd '${REPO}' && git push origin master" \
+    || {
+      err "[${dev}] git push 失敗（exit code 非零）"
+      err "[${dev}] 注意：local commit 已建立但未推送至 remote，請手動處理："
+      err "[${dev}]     Repo    : ${REPO}"
+      err "[${dev}]     Branch  : master"
+      err "[${dev}]     Hash    : ${LOCAL_HASH}"
+      err "[${dev}]     Message : ${COMMIT_MSG}"
+      err "[${dev}]     後續    : remote 恢復後執行 cd '${REPO}' && git push origin master"
+      return 1
+    }
   ok "[${dev}] push 完成"
 
   # 6. 部署後驗證；驗證失敗即視為該機種部署失敗，回傳非零

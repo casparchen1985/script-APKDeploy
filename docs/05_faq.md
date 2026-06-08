@@ -76,12 +76,23 @@ git push origin master
 
 ### Q7. 如果我 push 到一半 server 斷網了？
 
-**短答**：當下機種會留下 dirty repo，重跑相同指令會自動 reset。Staging APK 保留。
+**短答**：該機種被歸到 FAILED、其他機種繼續部署。**Local commit 保留不 rollback**，腳本會印出 repo 路徑、commit hash、commit message 與手動 push 指令（log 也會留）；staging APK 保留。
 
-**延伸**：
-- 腳本在 git push 前已 `commit`，所以可能出現「本地有 commit 但沒 push」的狀態。
-- 重跑時 `git pull origin master` 會 fast-forward，本地未 push commit 會卡住。
-- 此時需要：`cd <repo> && git reset --hard origin/master` 後再重跑。
+**延伸**：v1.0.4 起，`git push` 失敗會具體印出：
+
+```
+ERROR [rs38t] git push 失敗（exit code 非零）
+ERROR [rs38t] 注意：local commit 已建立但未推送至 remote，請手動處理：
+ERROR [rs38t]     Repo    : /home/app_dev/rs38t/titan_qssi13
+ERROR [rs38t]     Branch  : master
+ERROR [rs38t]     Hash    : a3f9c12
+ERROR [rs38t]     Message : SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3
+ERROR [rs38t]     後續    : remote 恢復後執行 cd '/home/app_dev/rs38t/titan_qssi13' && git push origin master
+```
+
+兩種補救方式：
+1. **直接 push**：remote 恢復後依提示貼上後續指令即可推送原本的 commit。
+2. **重跑相同部署指令**：腳本會先 `git pull origin master` fast-forward，但本地未 push commit 可能會擋住——此時需 `cd <repo> && git reset --hard origin/master` 後再重跑（這會丟掉那個 commit，由腳本重新建立）。
 
 ---
 
@@ -263,9 +274,9 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 
 ### Q21. `git pull` 衝突的話腳本怎麼處理？
 
-**短答**：腳本會在 `git pull` 失敗時 die，**不嘗試自動解衝突**。
+**短答**：腳本會在 `git pull` 失敗時把該機種歸到 FAILED 並 `return 1`（**不嘗試自動解衝突、不中斷其他機種**），log 印出 `git pull 失敗（exit code 非零），跳過此機種`。
 
-**延伸**：因為 `git checkout master && git clean -fd` 已先做了，正常情況不應有 conflict（除非有人在 server 上手動改了該 repo）。發生時請手動處理該 repo 再重跑。
+**延伸**：因為 `git checkout master && git clean -fd` 已先做了，正常情況不應有 conflict（除非有人在 server 上手動改了該 repo）。發生時請手動處理該 repo（`git status` 確認 → 解衝突或 `git reset --hard origin/master`）再重跑相同指令。Staging APK + libs 會自動保留供重試。
 
 ---
 
@@ -273,8 +284,8 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 
 **短答**：腳本**沒有 lock**。兩人同時跑同一機種有機率：
 
-- 一方 push 被拒（remote tip changed），會在腳本中 die。
-- 另一方成功後，第一方重跑時會 `git pull` 對齊。
+- 一方 push 被拒（remote tip changed，non-fast-forward），該機種會被歸到 FAILED 並 return 1，**local commit 保留**並印出手動 push 提示（見 Q7）。
+- 另一方成功後，第一方重跑時會 `git pull` 對齊。重跑前需先處理那個未推送的 local commit（`git reset --hard origin/master` 丟棄，或先手動 `git push --force-with-lease` 推上去）。
 
 **延伸**：建議 release window 有人協調，目前**沒有看到實際衝突**過。長期可加 file lock。
 
@@ -284,7 +295,7 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 
 **短答**：**不會**。腳本只在自己這次部署的範圍內 commit，`git pull origin master` 會先拉下別人的 commit。
 
-**延伸**：但若別人剛好 push 了相同 `Android.mk` 的改動，腳本的 Python 改寫可能會產生 merge conflict — 此時 `git pull` 失敗，腳本 die。
+**延伸**：但若別人剛好 push 了相同 `Android.mk` 的改動，腳本的 Python 改寫可能會產生 merge conflict — 此時 `git pull` 失敗，該機種歸到 FAILED 並 `return 1`（不中斷其他機種，staging 自動保留供重試，見 Q21）。
 
 ---
 
@@ -363,7 +374,81 @@ toBeUploaded/<App>/
 
 ---
 
-## H. 路線圖（如果被問到「未來會加什麼」）
+## H. Remote 連線異常處理（v1.0.4 新增）
+
+### Q31. v1.0.4 加了什麼？為什麼要加？
+
+**短答**：每個動 remote 的 git 步驟（`ls-remote` 預檢、`pull`、`push`）都加上**顯式 exit code 檢查**，避免 `set -e` 在函式被 `if` 呼叫時整段失效的 bash 陷阱。
+
+**延伸**：v1.0.3 以前，`deploy_device` 內部完全依賴 `set -e` 自動 abort。但主迴圈是 `if deploy_device "${dev}"; then ...`（為了收集失敗機種、不中斷整批），這個 `if` 會讓 bash 把函式內 `set -e` 整段視為**已禁用**。後果：
+
+- `git pull` 因 remote 斷線失敗時，`run` 內 subshell exit 非零，但函式不 abort，繼續往下跑
+- log 反而印出 `OK [${dev}] repo 已同步到最新 master`（假成功）
+- 後續以**過時 master** 做 cp / 改 Android.mk / commit
+- `git push` 同樣失敗，但又繼續往下，`OK [${dev}] push 完成`（再次假成功）
+- verify_device 檢查的是 HEAD（包含未推送的 local commit），全部 PASS
+- 主流程判斷「全機種成功」→ `rm` 掉 staging APK + libs
+
+最糟結果：**RD 看到「全部成功」訊息，但 remote 上其實沒有任何 commit，且原檔已被刪除**。多 RD 共用同一 server 時，未推送 commit 還會在 local master 累積。
+
+v1.0.4 在三處補上 `|| { err; return 1; }` 顯式檢查，繞過這個陷阱。
+
+---
+
+### Q32. `git ls-remote` 預檢做什麼？跟 `git pull` 不會重複嗎？
+
+**短答**：`ls-remote` 是 **read-only 純查詢**，~幾十 ms，目的是**動 local working tree 之前先確認 remote 通**。
+
+**延伸**：
+
+- `git pull` = fetch + merge，跑起來涉及 download object + merge working tree，是有破壞性的操作
+- 直接靠 `git pull` 失敗來判斷 remote 是否壞掉，會在它之前的 `git clean -fd` 已經跑過（雖然本腳本流程無害，但語意上「動 local 之前先確認 remote」更乾淨）
+- `ls-remote --exit-code origin master` 只查 remote 的 refs：
+  - 連不上 / DNS 錯 / VPN 沒開 / auth 過期 / URL 變了 → 非零
+  - `--exit-code` 旗標讓「remote 沒有 `master` 這個 ref」也回非零
+  - 不下載任何 object、不動 local 狀態
+- 預檢成功不代表 `git pull` 一定成功（remote 可能在預檢與 pull 之間斷掉，雖然罕見），所以 `git pull` 後**仍然要**檢查 exit code
+
+兩個檢查不是重複，是分工：
+- `ls-remote`：早期 fail-fast，免做後續 file system 動作
+- `git pull` 顯式檢查：防 race / 雙重保險
+
+---
+
+### Q33. 為什麼 `git push` 失敗不 rollback local commit？
+
+**短答**：保留 local commit + 明確提示 RD 手動 push，比起 `git reset --hard HEAD~1` 默默丟掉 commit 更穩妥。
+
+**延伸**：
+
+- Rollback 的話 RD 看不到「我已經做完了一個 commit」這件事，重跑時還要重新做一次
+- 不 rollback 的話，commit 是現成的，remote 恢復後**一行指令就能 push** 上去
+- 風險點：未推送 commit 會卡住下次 `git pull` 的 fast-forward。腳本在 log 已明確標示這點 + 給出補救指令
+- Log 同時印螢幕（紅字 `ERROR`）與寫入 `logs/deploy-...log`，事後追查可靠
+
+完整提示訊息範本見 Q7。
+
+---
+
+### Q34. v1.0.4 之前部署的機種有沒有殘留？要怎麼檢查？
+
+**短答**：如果遠端確實曾經斷過、且當時用 v1.0.3 部署過，**可能有未推送的 local commit 累積在某些機種 repo**。
+
+**延伸**：逐 device repo 檢查：
+
+```bash
+ssh app_dev@192.168.8.17
+for d in ~/rk26s/LA.QSSI.12.0 ~/rs36s/LA.QSSI.12.0 ~/rs38t/titan_qssi13 ...; do
+  echo "=== $d ==="
+  git -C "$d" log origin/master..HEAD --oneline
+done
+```
+
+有輸出的 repo 就是有未推送 commit。確認 commit 內容無誤後 `git -C <repo> push origin master`，或要丟棄就 `git -C <repo> reset --hard origin/master`。
+
+---
+
+## I. 路線圖（如果被問到「未來會加什麼」）
 
 - **CI 整合**：build server build 完自動丟 staging（需求待確認）
 - **驗證擴充**：apksigner 簽章、aapt 版號比對（低風險，可隨時加）

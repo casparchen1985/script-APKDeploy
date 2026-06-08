@@ -163,6 +163,9 @@ vim deploy_plan.xml
 | `authors.conf 中找不到 author key` | key 拼錯 / RD 還沒設定 | 修 `--author` 或補 conf |
 | `devices.conf 未定義機種` | device 拼錯 / 還沒登錄 | 修 `--device` 或補 conf |
 | `Commit message 不符` | 部署中途別人 push 進來了 | 看 `git log -1`，與相關 RD 協調 |
+| `無法連到 remote（git ls-remote 失敗）` | VPN / DNS / auth / URL / remote repo 異常 | 解 remote 連線後重跑；該機種零殘留（local 未動） |
+| `git pull 失敗（exit code 非零）` | Remote 連線異常或衝突 | 連線恢復後重跑；衝突情況 `cd <repo> && git status` 排查 |
+| `git push 失敗（local commit 已建立）` | Remote 連線異常 / non-fast-forward | 依 log 印出的 hash 與「後續」指令手動 push；或 `git reset --hard origin/master` 丟棄後重跑 |
 
 ---
 

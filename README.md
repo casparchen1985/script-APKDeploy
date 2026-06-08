@@ -289,9 +289,14 @@ toBeUploaded/
 ## 每台機種的完整部署流程
 
 ```
+[0] 預檢 remote 連線
+    git -C <repo> ls-remote --exit-code origin master
+    失敗 → err + return 1，此機種歸 FAILED，其他機種繼續
+         ↓
 [1] git checkout master
     git clean -fd
     git pull origin master
+    pull 失敗 → err + return 1，此機種歸 FAILED，其他機種繼續
          ↓
 [2] 複製 APK 至 repo
     cp <SCRIPT_DIR>/toBeUploaded/<apk> → <repo>/vendor/cipherlab/<APP_NAME>/
@@ -305,10 +310,14 @@ toBeUploaded/
     LOCAL_TARGET_CPU_ABI  ← ABI 名稱  (僅當 --libs)
     LOCAL_PREBUILT_JNI_LIBS ← 自動枚舉 (僅當 --libs)
          ↓
-[5] git add + commit + push
+[5a] git add + commit（先做 commit，不含 push）
     git commit --author="Firstname.Lastname <email>"
     commit message 來自 --message 參數
-    git push origin master
+    add / commit 失敗 → err + return 1，此機種歸 FAILED（無 local commit 殘留）
+         ↓
+[5b] git push origin master
+    push 失敗 → err + return 1，但保留 local commit
+              並印出 RD 手動處理資訊（repo / branch / hash / message / 後續指令）
          ↓
 [6] 自動驗證（可用 --no-verify 略過）—— 無 --libs 5 項；有 --libs 8 項
     ✓ 已部署的 APK 存在且 MD5 與 staging 一致
@@ -318,6 +327,23 @@ toBeUploaded/
     ✓ JNI Libs files MD5 全對                     (有 --libs)
     ✓ commit author name / email 符合 authors.conf
     ✓ commit message 符合 --message 參數
+```
+
+> **為什麼 step 0、step 1、step 5a/5b 都要顯式檢查 exit code？**  
+> Bash 的 `set -e` 有個反直覺的例外：當函式被 `if` / `&&` / `||` 包住呼叫時，函式內部的 `set -e` 整段失效。本腳本主迴圈是 `if deploy_device "${dev}"; then ...`（用來收集失敗機種、不中斷其他機種），所以函式內所有 git 動作都必須**手動**用 `|| { err; return 1; }` 抓 exit code，不能仰賴 `set -e` 自動 abort。否則 remote 壞掉時 `git pull` 失敗會被「靜默忽略」，腳本繼續在過時 master 上做事、commit、誤刪 staging APK。
+
+### Push 失敗時的提示訊息範例
+
+當 step 5b 的 `git push` 失敗（remote 連線異常、auth 過期、non-fast-forward 等任何原因），local commit **不會 rollback**，並印出以下訊息（同步寫入 log）：
+
+```
+ERROR [rs38t] git push 失敗（exit code 非零）
+ERROR [rs38t] 注意：local commit 已建立但未推送至 remote，請手動處理：
+ERROR [rs38t]     Repo    : /home/app_dev/rs38t/titan_qssi13
+ERROR [rs38t]     Branch  : master
+ERROR [rs38t]     Hash    : a3f9c12
+ERROR [rs38t]     Message : SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3
+ERROR [rs38t]     後續    : remote 恢復後執行 cd '/home/app_dev/rs38t/titan_qssi13' && git push origin master
 ```
 
 ---
@@ -637,3 +663,6 @@ APK_SUBDIR="vendor/app"
 | `Author name/email 不符` | `authors.conf` 中的 key 對應資訊有誤 | 確認 `authors.conf` 內容，name 與 email 格式是否正確 |
 | `Commit message 不符` | 部署途中有人另行 push 了新 commit | 確認 repo `git log -1` 是否為本次部署 |
 | 機種被 warn 略過 | `devices.conf` 未定義該機種名稱 | 在 `devices.conf` 補上對應行 |
+| `無法連到 remote（git ls-remote 失敗）` | 網路、VPN、auth、URL、remote repo 任一異常 | 解決連線問題後重跑相同指令；該機種不會留下任何 local 變更 |
+| `git pull 失敗` | Remote ref 拉取階段斷線或衝突 | 連線恢復後重跑；衝突需手動處理該 repo（`git status` 確認後再執行） |
+| `git push 失敗（local commit 已建立）` | Remote 斷線、auth 過期、non-fast-forward 等 | log 會印出 repo / hash / message 與手動 push 指令，依提示在 remote 恢復後手動推送 |

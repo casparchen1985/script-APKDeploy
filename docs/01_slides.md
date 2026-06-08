@@ -91,6 +91,8 @@ apk_deploy/
 ## 3.1 每台機種的執行流程
 
 ```
+[0] git ls-remote origin master       (預檢 remote 連線，純查詢)
+       ↓
 [1] git checkout master → clean -fd → pull origin master
        ↓
 [2] cp APK → vendor/cipherlab/<APP>/
@@ -103,7 +105,8 @@ apk_deploy/
        LOCAL_TARGET_CPU_ABI          ← ABI 名稱       (libs)
        LOCAL_PREBUILT_JNI_LIBS       ← enumerate remote (libs)
        ↓
-[5] git add → git commit --author=... → git push
+[5a] git add → git commit --author=...
+[5b] git push origin master                (push 與 commit 分開檢查)
        ↓
 [6] 自動驗證（可 --no-verify 略過）— 純 APK 5 項，含 libs 8 項
 ```
@@ -112,7 +115,41 @@ apk_deploy/
 
 ---
 
-## 3.2 APK 保留策略
+## 3.2 Remote 連線異常處理（v1.0.4）
+
+每個動 remote 的步驟（**[0] ls-remote / [1] pull / [5b] push**）都會**顯式檢查 exit code**：
+
+| 失敗點 | local file 影響 | local commit 影響 | 行為 |
+|---|---|---|---|
+| **[0] ls-remote** 失敗 | 無（尚未動） | 無 | 立即跳過此機種，零殘留 |
+| **[1] pull** 失敗 | 無（cp 尚未開始） | 無 | 跳過此機種 |
+| **[5b] push** 失敗 | 已 cp（保留） | **已建立、不 rollback** | 印 RD 手動 push 提示並跳過此機種 |
+
+</br>
+
+> **為什麼要顯式檢查？** 主迴圈用 `if deploy_device "${dev}"; then ...` 收集失敗機種、不中斷整批，這個 `if` 會讓函式內 `set -e` 整段失效——必須手動 `|| { err; return 1; }`。
+
+---
+
+## 3.2.1 Push 失敗時的 RD 提示
+
+push 失敗時，**local commit 保留**（不 rollback），並印出可直接執行的補救指令（同步寫入 log）：
+
+```
+ERROR [rs38t] git push 失敗（exit code 非零）
+ERROR [rs38t] 注意：local commit 已建立但未推送至 remote，請手動處理：
+ERROR [rs38t]     Repo    : /home/app_dev/rs38t/titan_qssi13
+ERROR [rs38t]     Branch  : master
+ERROR [rs38t]     Hash    : a3f9c12
+ERROR [rs38t]     Message : SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3
+ERROR [rs38t]     後續    : remote 恢復後執行 cd '/home/app_dev/rs38t/titan_qssi13' && git push origin master
+```
+
+> 設計理念：不 rollback 是為了保留 RD 已做完的工作；明確列印 hash + 訊息 + repo 路徑，讓 RD 在 remote 恢復後**一行貼回 terminal 就能完成 push**。
+
+---
+
+## 3.3 APK 保留策略
 
 腳本由**檔名**自動判斷版號，決定是否覆蓋：
 
