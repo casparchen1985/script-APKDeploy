@@ -7,10 +7,11 @@
 #
 # 用法:
 #   ./deploy_apk.sh \
-#     --app     KeyMappingManager \
-#     --apk     ~/apk_deploy/toBeUploaded/KeyMappingManager_v1.2.3.apk \
+#     --app     ReaderService_CipherLab \
+#     --apk     ~/apk_deploy/toBeUploaded/ReaderService_CipherLab_V1_3_104.apk \
+#     --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a \
 #     --author  Bob \
-#     --message "SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3" \
+#     --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
 #     --device  rk26s rs36s rk95u \
 #     --dry-run
 #
@@ -19,6 +20,7 @@
 #   --apk       staging 目錄上的 APK 路徑（必填）
 #   --libs      ABI 資料夾路徑，basename 即 LOCAL_TARGET_CPU_ABI（可選）
 #               內部任意檔案（含子目錄、無副檔名、非 .so 都接受）
+#               必須位於 toBeUploaded/ 之下（rm -rf 清理安全限制）
 #   --author    authors.conf 中的 key，例如 Bob（必填）
 #   --message   git commit message（必填）
 #   --device    一或多個機種，空格分隔，必須是 devices.conf 中定義的名稱（必填）
@@ -29,7 +31,14 @@
 #   - 檔名含版號識別 (例: _v1.2.3 / _1.2.3 / _20250513) → 保留舊版，新版共存
 #   - 檔名無版號識別 → 同名覆蓋
 #
-# APK 放入腳本同層的 toBeUploaded/ 即可；部署成功後自動刪除，失敗或未使用的保留供重試。
+# 機種結果三分類（最終 Deploy Result 顯示）:
+#   SUCCESS  完整跑完 step 0-6
+#   SKIPPED  step 1.5 偵測到「APK + libs MD5 + commit author/email/msg + HEAD 已推送」全相符 → 不重做
+#   FAILED   任一步驟錯誤（remote 連線、pull、commit、push、verify 等）
+#
+# Staging 清理規則：
+#   - 無失敗（SUCCESS + SKIPPED 任意組合）→ APK + libs 自動 rm
+#   - 任一 FAILED → 全部保留供重試（重跑時 SKIPPED 會自動跳過已完成機種）
 # =============================================================================
 
 set -euo pipefail
@@ -504,6 +513,63 @@ deploy_device() {
     || { err "[${dev}] git pull 失敗（exit code 非零），跳過此機種"; return 1; }
   ok "[${dev}] repo 已同步到最新 master"
 
+  # 1.5. SKIPPED 偵測：以下 5 條件全相符 → return 2
+  #   (1) APK 檔在 remote repo 且 MD5 == staging
+  #   (2) --libs 提供時，staging 每檔在 remote 都存在且 MD5 一致
+  #   (3) HEAD 已推送（HEAD == origin/master，避免 push-fail 後 retry 誤觸 SKIPPED）
+  #   (4) HEAD commit author name + email == --author 經 authors.conf 查表後的 name + email
+  #   (5) HEAD commit message == --message
+  local DEPLOYED_APK="${APK_DEST_DIR}/${APK_FILENAME}"
+  if [[ -f "${DEPLOYED_APK}" ]]; then
+    local SKIP_APK_MD5_STAGING SKIP_APK_MD5_REMOTE
+    SKIP_APK_MD5_STAGING=$(md5sum "${APK_PATH}"    | awk '{print $1}')
+    SKIP_APK_MD5_REMOTE=$(md5sum  "${DEPLOYED_APK}" | awk '{print $1}')
+
+    local SKIP_HEAD_NAME SKIP_HEAD_EMAIL SKIP_HEAD_MSG SKIP_HEAD_HASH
+    SKIP_HEAD_NAME=$(git  -C "${REPO}" log -1 --pretty=format:"%an" 2>/dev/null || echo "")
+    SKIP_HEAD_EMAIL=$(git -C "${REPO}" log -1 --pretty=format:"%ae" 2>/dev/null || echo "")
+    SKIP_HEAD_MSG=$(git   -C "${REPO}" log -1 --pretty=format:"%s"  2>/dev/null || echo "")
+    SKIP_HEAD_HASH=$(git  -C "${REPO}" rev-parse --short HEAD       2>/dev/null || echo "?")
+
+    # HEAD 必須等於 origin/master，否則代表 local 有未推送 commit（例如 push 失敗的殘留）
+    local SKIP_LOCAL_HEAD SKIP_REMOTE_HEAD
+    SKIP_LOCAL_HEAD=$(git  -C "${REPO}" rev-parse HEAD            2>/dev/null || echo "")
+    SKIP_REMOTE_HEAD=$(git -C "${REPO}" rev-parse origin/master   2>/dev/null || echo "")
+
+    # 有 --libs 時：staging 內每個檔案都必須存在 remote 且 MD5 相同
+    local SKIP_LIBS_MATCH=true
+    if [[ -n "${LIBS_PATH}" ]]; then
+      local sf rel rfile s_md5 r_md5
+      for sf in "${LIB_FILES[@]}"; do
+        rel="${sf#${LIBS_PATH}/}"
+        rfile="${LIBS_REMOTE_DIR}/${rel}"
+        if [[ ! -f "${rfile}" ]]; then SKIP_LIBS_MATCH=false; break; fi
+        s_md5=$(md5sum "${sf}"    | awk '{print $1}')
+        r_md5=$(md5sum "${rfile}" | awk '{print $1}')
+        if [[ "${s_md5}" != "${r_md5}" ]]; then SKIP_LIBS_MATCH=false; break; fi
+      done
+    fi
+
+    if [[ "${SKIP_APK_MD5_STAGING}" == "${SKIP_APK_MD5_REMOTE}" \
+       && "${SKIP_LOCAL_HEAD}"  == "${SKIP_REMOTE_HEAD}" \
+       && -n "${SKIP_LOCAL_HEAD}"                        \
+       && "${SKIP_HEAD_NAME}"  == "${GIT_AUTHOR_NAME}"   \
+       && "${SKIP_HEAD_EMAIL}" == "${GIT_AUTHOR_EMAIL}"  \
+       && "${SKIP_HEAD_MSG}"   == "${COMMIT_MSG}"        \
+       && "${SKIP_LIBS_MATCH}" == "true" ]]; then
+      log "${YELLOW}${SEP}${RESET}"
+      log "${YELLOW}  ⊘  [${dev}] SKIPPED — remote 已含相同部署${RESET}"
+      log "${YELLOW}${SEP}${RESET}"
+      log "  └─ APK MD5     : ${SKIP_APK_MD5_REMOTE}"
+      log "  └─ Commit hash : ${SKIP_HEAD_HASH} (HEAD == origin/master)"
+      log "  └─ Author      : ${SKIP_HEAD_NAME} <${SKIP_HEAD_EMAIL}>"
+      log "  └─ Commit msg  : ${SKIP_HEAD_MSG}"
+      [[ -n "${LIBS_PATH}" ]] && log "  └─ Libs        : ${#LIB_FILES[@]} 檔 MD5 全相符"
+      log ""
+      return 2
+    fi
+  fi
+
   # 2. 複製 APK 至 repo（版號策略）
   if ${APK_HAS_VERSION}; then
     info "[${dev}] APK 含版號識別，保留舊版，複製新版: ${APK_FILENAME}"
@@ -733,23 +799,28 @@ verify_device() {
 }
 
 # ---------- 主流程 ----------
+# deploy_device exit code 三分類：0=SUCCESS / 2=SKIPPED / 其他=FAILED
+SUCCESS=()
+SKIPPED=()
 FAILED=()
 for dev in "${VALID_DEVICES[@]}"; do
-  if deploy_device "${dev}"; then
-    :
-  else
-    err "[${dev}] 部署失敗！"
-    FAILED+=("${dev}")
-  fi
+  rc=0
+  deploy_device "${dev}" || rc=$?
+  case $rc in
+    0) SUCCESS+=("${dev}") ;;
+    2) SKIPPED+=("${dev}") ;;
+    *) err "[${dev}] 部署失敗！"; FAILED+=("${dev}") ;;
+  esac
 done
 
 # ---------- 清除 staging（APK + libs）----------
-# 規則：所有指定機種皆部署成功 → 刪除；任一失敗 → 保留供重試
+# 規則：FAILED 為空 → 刪除（SUCCESS + SKIPPED 皆視為沒有需要重試的工作）；
+#       FAILED 非空 → 保留供重試
 if [[ ${#FAILED[@]} -eq 0 ]]; then
   if $DRY_RUN; then
-    info "[DRY-RUN] rm ${APK_PATH}  # 全部成功，清除 staging APK"
+    info "[DRY-RUN] rm ${APK_PATH}  # 無失敗，清除 staging APK"
     if [[ -n "${LIBS_PATH}" ]]; then
-      info "[DRY-RUN] rm -rf ${LIBS_PATH}  # 全部成功，清除 staging libs 目錄"
+      info "[DRY-RUN] rm -rf ${LIBS_PATH}  # 無失敗，清除 staging libs 目錄"
     fi
   else
     rm -f "${APK_PATH}"
@@ -763,19 +834,20 @@ else
   warn "有機種部署失敗，staging 保留供重試:"
   warn "  APK : ${APK_FILENAME}"
   [[ -n "${LIBS_PATH}" ]] && warn "  Libs: ${LIBS_PATH}"
-  warn "重試時直接重新執行相同指令即可。"
+  warn "重試時直接重新執行相同指令即可（已成功 / 已跳過的機種會自動分類）。"
 fi
 
 # ---------- 最終結果 ----------
 echo ""
 echo -e "${BOLD}====== Deploy Result ======${RESET}"
 TOTAL=${#VALID_DEVICES[@]}
+OK_COUNT=${#SUCCESS[@]}
+SKIP_COUNT=${#SKIPPED[@]}
 FAIL_COUNT=${#FAILED[@]}
-OK_COUNT=$(( TOTAL - FAIL_COUNT ))
-echo -e "  總計: ${TOTAL}  ${GREEN}成功: ${OK_COUNT}${RESET}  ${RED}失敗: ${FAIL_COUNT}${RESET}"
-if [[ ${FAIL_COUNT} -gt 0 ]]; then
-  echo -e "  失敗機種: ${RED}${FAILED[*]}${RESET}"
-fi
+echo -e "  總計: ${TOTAL}  ${GREEN}成功: ${OK_COUNT}${RESET}  ${YELLOW}跳過: ${SKIP_COUNT}${RESET}  ${RED}失敗: ${FAIL_COUNT}${RESET}"
+[[ ${OK_COUNT}   -gt 0 ]] && echo -e "  ${GREEN}成功機種: ${SUCCESS[*]}${RESET}"
+[[ ${SKIP_COUNT} -gt 0 ]] && echo -e "  ${YELLOW}跳過機種: ${SKIPPED[*]}${RESET}  (內容與 remote 一致)"
+[[ ${FAIL_COUNT} -gt 0 ]] && echo -e "  ${RED}失敗機種: ${FAILED[*]}${RESET}"
 echo -e "  Log: ${LOG_FILE}"
 echo -e "==========================="
 

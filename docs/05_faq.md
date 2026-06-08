@@ -50,9 +50,17 @@
 **短答**：其他機種**繼續**部署，失敗的機種會列在最終 `Deploy Result` 區塊，exit code 為 1。
 
 **延伸**：
-- Staging APK 會被保留（因為「全成功」條件未達成）。
-- 修好問題後**重跑相同指令**即可——已成功的機種會被 `git pull` 對齊，再次跑 Android.mk 更新不會產生差異，git commit 會因為 nothing to commit 而失敗、但這代表已是最新狀態。
-- 真正想跳過已成功機種，請從 `--device` 拿掉它們。
+- Staging APK + libs 會被保留（因為「無失敗」條件未達成）。
+- push 失敗的機種：local commit 保留不 rollback（見 Q7），log 印出 repo / hash / 手動 push 指令。
+- 修好 remote 後**重跑相同指令**即可——SKIPPED 偵測會自動把各機種分類：
+  - 上一輪已部署完成（HEAD 已推送）的機種 → step 1.5 五項全符 → **歸 `跳過`**
+  - 上一輪 push 失敗（local 有未推送 commit）的機種 → SKIPPED 第 3 條件 `HEAD == origin/master` 不過 → 走正常流程，但 step 5a 會因 working tree 已是 commit 後的乾淨狀態而 nothing-to-commit → **歸 `失敗`**，需要手動補救
+  - 上一輪就已 SKIPPED 過的機種 → 仍然 `跳過`
+- 不需要手動從 `--device` 拿掉任何機種；SKIPPED 偵測會自動處理。
+
+**push 失敗機種的補救方式**（擇一）：
+- **方式 A（推薦）**：依 log 的「後續」提示手動 `cd <repo> && git push origin master` 把那個 local commit 推上去；下次重跑該機種會被 SKIPPED 通過
+- **方式 B**：`cd <repo> && git reset --hard origin/master` 砍掉 local commit，下次重跑會走完整 step 2-6 流程
 
 ---
 
@@ -448,7 +456,101 @@ done
 
 ---
 
-## I. 路線圖（如果被問到「未來會加什麼」）
+## I. SKIPPED 偵測（重跑安全）
+
+### Q35. SKIPPED 是什麼？什麼時候會出現？
+
+**短答**：當該機種已經部署過完全相同的內容、且 HEAD 已推送到 remote 時，腳本自動偵測並標記為 SKIPPED，不執行 step 2-6（cp / Android.mk / commit / push / verify）。
+
+**延伸**：偵測時機在 `git pull` 後（step 1.5），比對 5 項：
+
+1. `<APK_DEST_DIR>/<APK_FILENAME>` 存在 + staging APK MD5 == remote APK MD5
+2. `--libs` 提供時，staging 內**每個** `LIB_FILES` 對應 remote 的檔案 MD5 必須一致
+3. `HEAD == origin/master`——HEAD 必須等於 remote tip（避免 push-fail 後 local 有未推送 commit 時誤觸 SKIPPED；見 Q36）
+4. HEAD commit author name + email == `--author` 經 authors.conf 查表後的 name + email
+5. HEAD commit message == `--message` 參數
+
+**全部 5 項相符** → `return 2` → 主流程把該機種歸 `SKIPPED`，最終摘要顯示三類別（成功/跳過/失敗）。
+
+---
+
+### Q36. 為什麼要加 SKIPPED？跟 v1.0.4 修的 set -e bug 有關嗎？
+
+**短答**：有關。v1.0.4 把 `set -e` 失效的 bug 修好後，「重跑已成功機種」的場景**會被誠實標為 FAILED**（因 `git commit` 報 nothing to commit），但這對 RD 來說有點誤導——該機種其實是「沒事可做」而非「失敗」。SKIPPED 就是用來把這種「無需重做」的情況正確分類。
+
+**延伸**：以前（v1.0.3）的「假成功」流程是：
+
+```
+重跑 rk26s（已部署完成）→ commit nothing → set -e 失效繼續跑
+                       → push no-op → verify 對的是上次的 HEAD → 全部 PASS
+                       → 標為「成功」
+```
+
+v1.0.4 修好後：
+
+```
+重跑 rk26s（已部署完成）→ commit nothing → return 1 → 標為「失敗」
+```
+
+雖然「誠實」但 RD 看起來很困惑。SKIPPED 偵測在 step 1.5 就把這種情況攔住，**讓「重跑」不會被誤標 FAILED**。
+
+**`HEAD == origin/master` 這條的特殊用途**：v1.0.4 之後 push 失敗會保留 local commit（不 rollback）。如果 SKIPPED 只比對 local 屬性（APK MD5 + commit author/email/message），「commit 完成但 push 失敗」的機種重跑時會**看起來全部符合**而被誤標 SKIPPED——但實際上 remote 根本沒這個 commit！加上 HEAD 必須等於 remote tip 這條，就把這種「local 一致、remote 不同步」的狀態擋掉，正確走回 FAILED 流程，由 RD 手動處理。
+
+---
+
+### Q37. SKIPPED 機種會跑 verify 嗎？會被算進「成功」總數嗎？
+
+**短答**：**不會跑 verify**。會獨立歸到「跳過」這一類，**不計入「成功」也不計入「失敗」**。
+
+**延伸**：
+
+- SKIPPED 條件本身已涵蓋 verify 的核心檢查（APK MD5、commit author/email/message、libs MD5），跑 verify 等於重複比對
+- 最終 `Deploy Result` 是三類別獨立統計：`總計: 3  成功: 1  跳過: 1  失敗: 1`
+- Exit code 仍以「失敗數是否為 0」決定（SKIPPED 不影響 exit code）
+
+---
+
+### Q38. SKIPPED 會阻擋 staging 清除嗎？
+
+**短答**：**不會**。Staging 清除規則是「FAILED 為空 → 清除」，SKIPPED 不阻擋。
+
+**延伸**：
+
+| 機種狀態組合 | Staging 行為 |
+|---|---|
+| 全 SUCCESS | 清除 |
+| SUCCESS + SKIPPED | 清除 |
+| 全 SKIPPED（全都已部署過） | 清除 |
+| 任一 FAILED | 保留 |
+
+「全 SKIPPED」也清除的理由：那代表 staging 上的 APK / libs 已經到位所有目標機種，留著沒意義。
+
+---
+
+### Q39. 我想強制重新部署，但 APK + message 都跟之前一樣，怎麼辦？
+
+**短答**：把 `--message` 改一個字（如加上 ` (retry)`）就會繞過 SKIPPED 偵測。
+
+**延伸**：SKIPPED 偵測的 4 個條件**任一不符**就會走正常流程。常見「強制重做」手法：
+
+- 改 `--message`（最輕量，commit message 一旦不同就會觸發正常 commit + push 流程）
+- 改 `--author`（不建議，commit 紀錄要實事求是）
+- 換不同檔名的 APK（如版號 bump）
+- 直接 ssh 進該 device repo 手動 `git reset --hard HEAD~1` 把上次的 commit 砍掉再重跑
+
+最常見場景：上次部署的 commit 推上去後發現要重做（例如 build artifact 其實是錯的），這時 APK 內容很可能會不同（重新 build 的 binary），MD5 自動不同 → SKIPPED 偵測自動不觸發。
+
+---
+
+### Q40. SKIPPED 偵測會不會誤判？例如別人手動 push 了一個 commit 之後再跑這個腳本？
+
+**短答**：**會**——如果別人的 commit 巧合地有相同的 author + message + APK MD5（極不可能但理論上存在）就會 SKIPPED；正常情境下其他人 push 的 commit 通常 message 或 author 都不同，會觸發正常流程。
+
+**延伸**：SKIPPED 比對的是 **HEAD 的 commit**，所以只能偵測「最後一個 commit 是不是這次部署的結果」。若部署完成後別人又 push 了新 commit，HEAD 變成別人的，SKIPPED 偵測會失準（看到不同的 author/message → 不 SKIP → 走正常流程）。這是預期行為，不算誤判。
+
+---
+
+## J. 路線圖（如果被問到「未來會加什麼」）
 
 - **CI 整合**：build server build 完自動丟 staging（需求待確認）
 - **驗證擴充**：apksigner 簽章、aapt 版號比對（低風險，可隨時加）

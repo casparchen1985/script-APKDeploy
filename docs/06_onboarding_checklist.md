@@ -140,9 +140,11 @@
 - [ ] 目標機種清單已確認（不要漏、也不要多）
 - [ ] **第一次先 `--dry-run`**
 - [ ] dry-run 通過 → 拿掉 `--dry-run` 正式跑
-- [ ] 看到 `Deploy Result` 顯示 `失敗: 0`
-- [ ] Staging APK 已自動清除（`ls toBeUploaded/` 確認）
+- [ ] 看到 `Deploy Result` 顯示 `失敗: 0`（`跳過` 數可能 > 0，代表該機種已部署過相同內容，屬正常）
+- [ ] Staging APK 已自動清除（`ls toBeUploaded/` 確認；無失敗即清除，SKIPPED 不阻擋）
 - [ ] 留下 log 檔路徑（如需後續 review）
+
+> 重跑失敗的部署時不需要從 `--device` 拿掉已成功的機種——SKIPPED 偵測會自動跳過它們。
 
 ---
 

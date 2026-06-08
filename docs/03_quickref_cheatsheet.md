@@ -113,11 +113,28 @@ cd ~/apk_deploy
 - **必須位於 `toBeUploaded/` 之下**（rm -rf 清理安全限制）
 - 內部檔案／階層／格式 RD 自理；hidden 與 symlink 跳過
 - **絕不刪除 remote 既有檔**；同名同 MD5 略過、同名異 MD5 覆蓋、新增不存在的
-- 全成功 → APK 自動 rm -f、libs 自動 rm -rf（清掉整包 ABI 資料夾）
+- 無失敗（SUCCESS + SKIPPED 任意組合）→ APK 自動 rm -f、libs 自動 rm -rf（清掉整包 ABI 資料夾）
 - `.mk` 自動維護 `LOCAL_TARGET_CPU_ABI` + `LOCAL_PREBUILT_JNI_LIBS`；缺欄位 insert 到 `include $(BUILD_PREBUILT)` 之前
 - 缺 `include $(BUILD_PREBUILT)` 錨點 → die
 
 逐檔 log 標籤：`[ Added ]` / `[Updated]` / `[Skipped]`
+
+---
+
+## 5.6 SKIPPED 偵測（重跑安全）
+
+`git pull` 之後比對 5 項，**全相符 → 該機種歸 SKIPPED**，不重做 cp / commit / push / verify：
+
+1. `<APK_DEST_DIR>/<APK_FILENAME>` 存在 + MD5 == staging APK MD5
+2. `--libs` 提供時，staging 內每個檔案在 remote 都存在且 MD5 一致
+3. **HEAD == origin/master**（HEAD 已推送；避免 push-fail 重跑誤觸 SKIPPED）
+4. HEAD commit author name + email == `--author` 經 authors.conf 查表後的 name + email
+5. HEAD commit message == `--message` 參數
+
+最終 `Deploy Result` 三類別獨立統計：`總計: 3  成功: 1  跳過: 1  失敗: 1`。  
+**SKIPPED 不計入失敗、不影響 exit code、不阻擋 staging 清除。**
+
+強制重做：改 `--message` 一個字、或換不同檔名 APK，即可繞過 SKIPPED 偵測。
 
 ---
 

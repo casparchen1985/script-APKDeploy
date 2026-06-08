@@ -12,7 +12,7 @@ apk_deploy/                  ← git clone 後的根目錄，cd 進來直接執�
 ├── batch_deploy.sh          # 批次包裝腳本（讀取 deploy_plan.xml）
 ├── verify_deploy.sh         # 獨立驗證腳本（不執行部署，僅檢查結果）
 ├── deploy_plan.xml.template # 批次計畫範本（複製為 deploy_plan.xml 後編輯）
-├── toBeUploaded/            # APK + libs staging 區（全機種成功後自動清除）
+├── toBeUploaded/            # APK + libs staging 區（無失敗即自動清除；SKIPPED 不阻擋）
 │   └── .gitkeep
 ├── config/
 │   ├── devices.conf         # 機種名稱 → repo 路徑
@@ -110,7 +110,7 @@ chmod +x deploy_apk.sh batch_deploy.sh verify_deploy.sh
 
 在 upload server 上執行。RD 須先將 APK 及 libs 資料夾上傳至腳本同層的 `toBeUploaded/`，所有不同 app 的 APK 統一放在這個目錄下 (不需分子目錄)。  
 但 libs 需放在資料夾中 `toBeUploaded/<category>/<ABI>/` ，路徑指到 ABI 資料夾即可。  
-所有機種皆部署成功後 staging APK 與 libs 都會自動清除。任一機種失敗則保留供重試，重新執行相同指令即可。
+所有機種皆**無失敗**（SUCCESS + SKIPPED 任意組合）staging APK 與 libs 都會自動清除。任一機種失敗則保留供重試，重新執行相同指令即可——已部署相同內容的機種會被偵測為 SKIPPED 不重做。
 
 ```bash
 # 1. 先將 APK + libs 上傳到 server 的 toBeUploaded/（RD 從自己電腦執行）
@@ -207,12 +207,12 @@ toBeUploaded/
 
 #### 部署成功後的 staging 清理
 
-全機種成功部署完畢，腳本會：
+**所有機種無失敗（SUCCESS + SKIPPED 任意組合）**腳本會：
 
 1. `rm -f` staging APK 檔案
 2. `rm -rf` `--libs` 指向的 ABI 整包資料夾（僅當 `--libs` 提供時）
 
-任一機種失敗 → APK + libs 都保留，重新執行相同指令即可重試。
+**任一機種失敗** → APK + libs 都保留，重新執行相同指令即可重試。重試時已部署相同內容的機種會被偵測為 SKIPPED 自動跳過 step 2-6。
 
 > 由於 `rm -rf` 是破壞性動作，腳本強制 `--libs` 必須在 `toBeUploaded/` 之下，避免誤刪外部資料。
 
@@ -298,6 +298,14 @@ toBeUploaded/
     git pull origin master
     pull 失敗 → err + return 1，此機種歸 FAILED，其他機種繼續
          ↓
+[1.5] SKIPPED 偵測（pull 之後比對 remote 現況）
+    若以下「全部相符」→ return 2，此機種歸 SKIPPED，跳過 step 2-6：
+      - <APK_DEST_DIR>/<APK_FILENAME> 存在且 staging APK MD5 一致
+      - --libs 提供時，staging 內每個檔案在 remote 都存在且 MD5 一致
+      - HEAD == origin/master（HEAD 已推送；避免 push-fail 重跑誤觸 SKIPPED）
+      - HEAD commit author name + email == --author 經 authors.conf 查表後的 name + email
+      - HEAD commit message             == --message 參數
+         ↓
 [2] 複製 APK 至 repo
     cp <SCRIPT_DIR>/toBeUploaded/<apk> → <repo>/vendor/cipherlab/<APP_NAME>/
          ↓
@@ -330,7 +338,7 @@ toBeUploaded/
 ```
 
 > **為什麼 step 0、step 1、step 5a/5b 都要顯式檢查 exit code？**  
-> Bash 的 `set -e` 有個反直覺的例外：當函式被 `if` / `&&` / `||` 包住呼叫時，函式內部的 `set -e` 整段失效。本腳本主迴圈是 `if deploy_device "${dev}"; then ...`（用來收集失敗機種、不中斷其他機種），所以函式內所有 git 動作都必須**手動**用 `|| { err; return 1; }` 抓 exit code，不能仰賴 `set -e` 自動 abort。否則 remote 壞掉時 `git pull` 失敗會被「靜默忽略」，腳本繼續在過時 master 上做事、commit、誤刪 staging APK。
+> Bash 的 `set -e` 有個反直覺的例外：當函式被 `if` / `&&` / `||` / `!` 包住呼叫時，函式內部的 `set -e` 整段失效。本腳本主迴圈是 `deploy_device "${dev}" || rc=$?`（用來區分 SUCCESS / SKIPPED / FAILED 三類），這個 `||` 一樣會讓函式內 `set -e` 失效，所以所有 git 動作都必須**手動**用 `|| { err; return 1; }` 抓 exit code，不能仰賴 `set -e` 自動 abort。否則 remote 壞掉時 `git pull` 失敗會被「靜默忽略」，腳本繼續在過時 master 上做事、commit、誤刪 staging APK。
 
 ### Push 失敗時的提示訊息範例
 
@@ -345,6 +353,23 @@ ERROR [rs38t]     Hash    : a3f9c12
 ERROR [rs38t]     Message : SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3
 ERROR [rs38t]     後續    : remote 恢復後執行 cd '/home/app_dev/rs38t/titan_qssi13' && git push origin master
 ```
+
+### SKIPPED 偵測訊息範例
+
+step 1.5 偵測到該機種已部署相同內容時，跳過 step 2-6 並印出（同步寫入 log）：
+
+```
+────────────────────────────────────────
+  ⊘  [rk26s] SKIPPED — remote 已含相同部署
+────────────────────────────────────────
+  └─ APK MD5     : a3f9c12d8e4b7f2190ac56de83107b45
+  └─ Commit hash : a3f9c12 (HEAD == origin/master)
+  └─ Author      : Bob.Lin <Bob.Lin@cipherlab.com.tw>
+  └─ Commit msg  : SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3
+  └─ Libs        : 5 檔 MD5 全相符
+```
+
+> **SKIPPED 不算失敗。** 最終結果以三類別顯示（成功 / 跳過 / 失敗），exit code 仍以「失敗數是否為 0」決定。Staging APK + libs 的清除規則維持「無失敗即清除」（SKIPPED 不阻擋清除）。
 
 ---
 
@@ -469,6 +494,26 @@ LOCAL_PREBUILT_JNI_LIBS := \
 ```
 
 任一項目不符，該項在摘要中標 `✗ FAIL`，該機種標記為失敗，最終 exit code 為 1。Lib 驗證失敗時會列出所有不符檔案完整相對路徑。
+
+**最終 Deploy Result（三類別摘要）：**
+
+```
+====== Deploy Result ======
+  總計: 3  成功: 1  跳過: 1  失敗: 1
+  成功機種: rs38t
+  跳過機種: rk26s  (內容與 remote 一致)
+  失敗機種: rs36s
+  Log: logs/deploy-Caspar-ReaderService_CipherLab-20260520_143022.log
+===========================
+```
+
+| 類別 | 何時出現 | 對 staging 清除的影響 |
+|---|---|---|
+| **成功** | 該機種完整跑完 step 0-6 且全部 PASS | 不阻擋清除 |
+| **跳過** | step 1.5 偵測到 APK MD5 + libs MD5 + commit author/email/message 全相符 | 不阻擋清除 |
+| **失敗** | 任何步驟出錯（remote 連線異常、push 失敗、verify 不符等） | 阻擋清除，staging 保留供重試 |
+
+Exit code：失敗數 > 0 時為 1，否則為 0（跳過不影響 exit code）。
 
 ---
 

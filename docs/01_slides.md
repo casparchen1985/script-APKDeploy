@@ -63,7 +63,7 @@ layout: cover
   - APK MD5 / Android.mk content* / commit author name / email / message  
   *LOCAL_SRC_FILES  
   *LOCAL_TARGET_CPU_ABI / LOCAL_PREBUILT_JNI_LIBS 清單 / 每支 libs 檔案 MD5
-- 全成功 → staging APK 與 libs 都自動清除；任一失敗 → 全部保留供重跑
+- 無失敗（SUCCESS + SKIPPED）→ staging APK 與 libs 都自動清除；任一失敗 → 全部保留供重跑
 
 > 範疇外：**不**負責 build APK、**不**改 repo 的 git config、**不**做 code review
 
@@ -79,7 +79,7 @@ apk_deploy/
 ├── config/
 │   ├── devices.conf           # 機種 → repo 路徑
 │   └── authors.conf           # RD → git author 資訊
-├── toBeUploaded/              # APK + libs staging (全機種成功後自動清除)
+├── toBeUploaded/              # APK + libs staging (無失敗即清除；SKIPPED 不阻擋)
 ├── logs/                      # 每次執行的時間戳記 log
 └── deploy_plan.xml.template   # 批次計畫範本（複製為 deploy_plan.xml 後編輯）
 ```
@@ -95,6 +95,8 @@ apk_deploy/
        ↓
 [1] git checkout master → clean -fd → pull origin master
        ↓
+[1.5] SKIPPED 偵測（APK MD5 + libs MD5 + commit author/email/msg 全相符）
+       ↓ 不符才繼續
 [2] cp APK → vendor/cipherlab/<APP>/
        ↓
 [3] cp libs → vendor/cipherlab/<APP>/libs/<ABI>/   (僅當 --libs)
@@ -111,7 +113,7 @@ apk_deploy/
 [6] 自動驗證（可 --no-verify 略過）— 純 APK 5 項，含 libs 8 項
 ```
 
-任何步驟失敗 → 該機種標記為失敗，**不影響其他機種繼續部署**
+機種三分類：**SUCCESS / SKIPPED / FAILED**，任一機種失敗不影響其他機種繼續部署。
 
 ---
 
@@ -127,7 +129,7 @@ apk_deploy/
 
 </br>
 
-> **為什麼要顯式檢查？** 主迴圈用 `if deploy_device "${dev}"; then ...` 收集失敗機種、不中斷整批，這個 `if` 會讓函式內 `set -e` 整段失效——必須手動 `|| { err; return 1; }`。
+> **為什麼要顯式檢查？** 主迴圈用 `deploy_device "${dev}" || rc=$?` 區分 SUCCESS/SKIPPED/FAILED 三類、不中斷整批，這個 `||` 會讓函式內 `set -e` 整段失效——必須手動 `|| { err; return 1; }`。
 
 ---
 
@@ -149,7 +151,39 @@ ERROR [rs38t]     後續    : remote 恢復後執行 cd '/home/app_dev/rs38t/tit
 
 ---
 
-## 3.3 APK 保留策略
+## 3.3 SKIPPED 偵測（重跑安全）
+
+`git pull` 完成後（step 1.5），腳本比對 remote 現況決定是否要實際做事：
+
+| 比對項目 | 來源 |
+|---|---|
+| APK 檔名 + MD5 | `<APK_DEST_DIR>/<APK_FILENAME>` |
+| Libs MD5（有 --libs 時） | staging 內每個 `LIB_FILES` 對 remote `LIBS_REMOTE_DIR/<rel>` |
+| **HEAD == origin/master** | 確保 HEAD 已推送，避免 push-fail 重跑誤觸 SKIPPED |
+| Commit author name + email | `git log -1` 比 **`--author` 經 authors.conf 查表後** 的 name + email |
+| Commit message | `git log -1` 比 `--message` 參數 |
+
+**5 項全相符 → return 2 → 該機種歸 SKIPPED**，跳過 step 2-6。
+
+</br>
+
+```
+────────────────────────────────────────
+  ⊘  [rk26s] SKIPPED — remote 已含相同部署
+────────────────────────────────────────
+  └─ APK MD5     : a3f9c12d8e4b7f2190ac56de83107b45
+  └─ Commit hash : a3f9c12 (HEAD == origin/master)
+  └─ Author      : Bob.Lin <Bob.Lin@cipherlab.com.tw>
+  └─ Commit msg  : SW_CLUTY-381 : [Cipherlab] Update KeyMappingManager v1.2.3
+  └─ Libs        : 5 檔 MD5 全相符
+```
+
+> **設計動機**：失敗重跑時，已部署成功的機種會被自動識別，**不會再次嘗試 commit 然後因「nothing to commit」失敗**，也不會誤標 FAILED。  
+> **HEAD == origin/master 這條的特殊用途**：v1.0.4 引入「push 失敗保留 local commit」後，純比對 local 屬性會誤把「commit 完但 push 失敗」的機種當成 SKIPPED——加上 HEAD 必須等於 remote tip 這條就能擋掉。
+
+---
+
+## 3.4 APK 保留策略
 
 腳本由**檔名**自動判斷版號，決定是否覆蓋：
 
@@ -212,11 +246,14 @@ Dry-run 印出**所有會執行的指令**但不動 repo，確認無誤再拿掉
 [05-20 14:30:25] ✔  [rs38t] 部署成功
   ...
 ====== Deploy Result ======
-  總計: 1  成功: 1  失敗: 0
+  總計: 1  成功: 1  跳過: 0  失敗: 0
+  成功機種: rs38t
   Log: logs/deploy-Caspar-ReaderService_CipherLab-20260520_143022.log
+===========================
 ```
 
-> 純 APK 部署輸出格式相同，差別僅在無 `Libs ABI` 那行、驗證項目 5 項而非 8 項。
+> 純 APK 部署輸出格式相同，差別僅在無 `Libs ABI` 那行、驗證項目 5 項而非 8 項。  
+> 重跑時若該機種已部署相同內容，會出現 `跳過: 1`，並印出 SKIPPED 區塊（見 3.3）。
 
 ---
 
