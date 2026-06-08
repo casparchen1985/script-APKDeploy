@@ -189,8 +189,9 @@ vim deploy_plan.xml
 ## 9. Log 位置
 
 ```
-~/apk_deploy/logs/deploy-<AuthorKey>-<AppName>-YYYYMMDD_HHMMSS.log
-# 例：~/apk_deploy/logs/deploy-Caspar-KeyMappingManager-20260520_143022.log
+~/apk_deploy/logs/<AuthorKey>-<AppName>-YYYYMMDD_HHMMSS.log
+# 例：~/apk_deploy/logs/Caspar-KeyMappingManager-20260520_143022.log
+# Dry-run 會多一個 -dryrun 後綴：Caspar-KeyMappingManager-20260520_143022-dryrun.log
 ```
 
 回報問題時請附對應 log，含時間戳記方便對照。

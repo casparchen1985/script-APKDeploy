@@ -503,7 +503,7 @@ LOCAL_PREBUILT_JNI_LIBS := \
   成功機種: rs38t
   跳過機種: rk26s  (內容與 remote 一致)
   失敗機種: rs36s
-  Log: logs/deploy-Caspar-ReaderService_CipherLab-20260520_143022.log
+  Log: logs/Caspar-ReaderService_CipherLab-20260520_143022.log
 ===========================
 ```
 
@@ -522,8 +522,9 @@ Exit code：失敗數 > 0 時為 1，否則為 0（跳過不影響 exit code）�
 每次執行 `deploy_apk.sh` 都會在 `logs/` 下自動產生 log 檔：
 
 ```
-logs/deploy-<Author>-<App>-YYYYMMDD_HHMMSS.log
-# 例：logs/deploy-Caspar-KeyMappingManager-20260520_143022.log
+logs/<Author>-<App>-YYYYMMDD_HHMMSS.log
+# 例：logs/Caspar-KeyMappingManager-20260520_143022.log
+# Dry-run 會多一個 -dryrun 後綴：logs/Caspar-KeyMappingManager-20260520_143022-dryrun.log
 ```
 
 `batch_deploy.sh` 呼叫多次 `deploy_apk.sh`，每次呼叫各自產生獨立 log。

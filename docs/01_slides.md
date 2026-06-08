@@ -248,7 +248,7 @@ Dry-run 印出**所有會執行的指令**但不動 repo，確認無誤再拿掉
 ====== Deploy Result ======
   總計: 1  成功: 1  跳過: 0  失敗: 0
   成功機種: rs38t
-  Log: logs/deploy-Caspar-ReaderService_CipherLab-20260520_143022.log
+  Log: logs/Caspar-ReaderService_CipherLab-20260520_143022.log
 ===========================
 ```
 
@@ -434,7 +434,7 @@ XML / CLI 引用到不存在的 key 會**提前報錯**並終止
 | 速查卡（一頁） | `docs/03_quickref_cheatsheet.md` |
 | FAQ | `docs/05_faq.md` |
 | 新人 / 新機種 checklist | `docs/06_onboarding_checklist.md` |
-| Log（每次執行） | `apk_deploy/logs/deploy-<Author>-<App>-YYYYMMDD_HHMMSS.log` |
+| Log（每次執行） | `apk_deploy/logs/<Author>-<App>-YYYYMMDD_HHMMSS[-dryrun].log` |
 | Repo | `git@gitlab.cipherlab.com.tw:app-dev/android/automation/scriptapkdeploy.git` |
 
 ---

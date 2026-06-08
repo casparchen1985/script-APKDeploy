@@ -52,9 +52,24 @@ AUTHORS_CONF="${CONFIG_DIR}/authors.conf"
 
 mkdir -p "${LOG_DIR}"
 # 起始 LOG_FILE 用 placeholder 名；解析完 --author / --app 後 rename 為
-# deploy-<AuthorKey>-<AppName>-YYYYMMDD_HHMMSS.log
+# <AuthorKey>-<AppName>-YYYYMMDD_HHMMSS[-dryrun].log
 DATE_STAMP="$(date +%Y%m%d_%H%M%S)"
-LOG_FILE="${LOG_DIR}/deploy-pending-${DATE_STAMP}.log"
+
+# 預掃 argv 抓 --author，讓 pending log 檔名也帶上 author id
+_PRE_AUTHOR=""
+_pre_args=("$@")
+for ((_i=0; _i<${#_pre_args[@]}; _i++)); do
+  if [[ "${_pre_args[$_i]}" == "--author" && $((_i+1)) -lt ${#_pre_args[@]} ]]; then
+    _PRE_AUTHOR="${_pre_args[$((_i+1))]}"
+    break
+  fi
+done
+if [[ -n "${_PRE_AUTHOR}" ]]; then
+  LOG_FILE="${LOG_DIR}/pending-${_PRE_AUTHOR}-${DATE_STAMP}.log"
+else
+  LOG_FILE="${LOG_DIR}/pending-${DATE_STAMP}.log"
+fi
+unset _PRE_AUTHOR _pre_args _i
 
 # ---------- 顏色輸出 ----------
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -116,8 +131,10 @@ done
 APK_PATH="${APK_PATH/#\~/$HOME}"
 [[ -f "${APK_PATH}" ]] || die "找不到 APK 檔案: ${APK_PATH}"
 
-# ---------- LOG_FILE rename: deploy-<Author>-<App>-DATE.log ----------
-NEW_LOG="${LOG_DIR}/deploy-${AUTHOR_KEY}-${APP_NAME}-${DATE_STAMP}.log"
+# ---------- LOG_FILE rename: <Author>-<App>-DATE[-dryrun].log ----------
+DRYRUN_SUFFIX=""
+$DRY_RUN && DRYRUN_SUFFIX="-dryrun"
+NEW_LOG="${LOG_DIR}/${AUTHOR_KEY}-${APP_NAME}-${DATE_STAMP}${DRYRUN_SUFFIX}.log"
 if [[ "${LOG_FILE}" != "${NEW_LOG}" ]]; then
   [[ -f "${LOG_FILE}" ]] && mv "${LOG_FILE}" "${NEW_LOG}"
   LOG_FILE="${NEW_LOG}"

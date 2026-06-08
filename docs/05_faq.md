@@ -221,7 +221,7 @@ vendor/cipherlab/key_mapping_mgr/   ← module 目錄
 
 **短答**：兩個來源：
 
-1. `~/apk_deploy/logs/deploy-<AuthorKey>-<AppName>-YYYYMMDD_HHMMSS.log`（每次執行）
+1. `~/apk_deploy/logs/<AuthorKey>-<AppName>-YYYYMMDD_HHMMSS[-dryrun].log`（每次執行）
 2. 各機種 repo 的 `git log`（commit author / message / hash）
 
 **延伸**：log 檔不進版控（在 `.gitignore`），目前**僅存在 server 上**。長期保留 / 集中分析需要另外設計（例如 rsync 到中央 storage）。
@@ -432,7 +432,7 @@ v1.0.4 在三處補上 `|| { err; return 1; }` 顯式檢查，繞過這個陷阱
 - Rollback 的話 RD 看不到「我已經做完了一個 commit」這件事，重跑時還要重新做一次
 - 不 rollback 的話，commit 是現成的，remote 恢復後**一行指令就能 push** 上去
 - 風險點：未推送 commit 會卡住下次 `git pull` 的 fast-forward。腳本在 log 已明確標示這點 + 給出補救指令
-- Log 同時印螢幕（紅字 `ERROR`）與寫入 `logs/deploy-...log`，事後追查可靠
+- Log 同時印螢幕（紅字 `ERROR`）與寫入 `logs/<Author>-<App>-...log`，事後追查可靠
 
 完整提示訊息範本見 Q7。
 
