@@ -506,14 +506,16 @@ LOCAL_PREBUILT_JNI_LIBS := \
 **最終 Deploy Result（三類別摘要）：**
 
 ```
-====== Deploy Result ======
-  總計: 3  成功: 1  跳過: 1  失敗: 1
-  成功機種: rs38t
-  跳過機種: rk26s  (內容與 remote 一致)
-  失敗機種: rs36s
-  Log: logs/Caspar-ReaderService_CipherLab-20260520_143022.log
-===========================
+[05-20 14:30:25] ====== Deploy Result ======
+[05-20 14:30:25]   總計: 3  成功: 1  跳過: 1  失敗: 1
+[05-20 14:30:25]   成功機種: rs38t
+[05-20 14:30:25]   跳過機種: rk26s  (內容與 remote 一致)
+[05-20 14:30:25]   失敗機種: rs36s
+[05-20 14:30:25]   Log: logs/Caspar-ReaderService_CipherLab-20260520_143022.log
+[05-20 14:30:25] ===========================
 ```
+
+> 每行 `[MM-DD HH:MM:SS]` 是 `log()` 函式統一加上的時間戳——所有輸出（含 Summary / Deploy Result 區塊）都會帶上，螢幕與 log 檔同步。
 
 | 類別 | 何時出現 | 對 staging 清除的影響 |
 |---|---|---|

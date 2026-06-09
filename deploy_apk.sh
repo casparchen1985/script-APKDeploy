@@ -223,19 +223,19 @@ done
 [[ ${#VALID_DEVICES[@]} -eq 0 ]] && die "沒有有效機種可部署"
 
 # ---------- 摘要 ----------
-echo -e "${BOLD}====== APK Deploy Summary ======${RESET}"
-echo -e "  APP        : ${CYAN}${APP_NAME}${RESET}"
-echo -e "  APK        : ${CYAN}${APK_FILENAME}${RESET}"
-echo -e "  版號識別   : $(${APK_HAS_VERSION} && echo "${GREEN}有版號 → 保留舊版共存${RESET}" || echo "${YELLOW}無版號 → 同名覆蓋${RESET}")"
+log "${BOLD}====== APK Deploy Summary ======${RESET}"
+log "  APP        : ${CYAN}${APP_NAME}${RESET}"
+log "  APK        : ${CYAN}${APK_FILENAME}${RESET}"
+log "  版號識別   : $(${APK_HAS_VERSION} && echo "${GREEN}有版號 → 保留舊版共存${RESET}" || echo "${YELLOW}無版號 → 同名覆蓋${RESET}")"
 if [[ -n "${LIBS_PATH}" ]]; then
-  echo -e "  Libs ABI   : ${CYAN}${ABI_NAME}${RESET}  (${#LIB_FILES[@]} 個檔案)"
+  log "  Libs ABI   : ${CYAN}${ABI_NAME}${RESET}  (${#LIB_FILES[@]} 個檔案)"
 fi
-echo -e "  Author     : ${CYAN}${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>${RESET}"
-echo -e "  Message    : ${CYAN}${COMMIT_MSG}${RESET}"
-echo -e "  Devices    : ${CYAN}${VALID_DEVICES[*]}${RESET}"
-echo -e "  Dry-run    : ${DRY_RUN}"
-echo -e "================================"
-echo ""
+log "  Author     : ${CYAN}${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>${RESET}"
+log "  Message    : ${CYAN}${COMMIT_MSG}${RESET}"
+log "  Devices    : ${CYAN}${VALID_DEVICES[*]}${RESET}"
+log "  Dry-run    : ${DRY_RUN}"
+log "================================"
+log ""
 
 # ---------- 輔助函式 ----------
 # 本地複製（在 server 上直接操作）
@@ -862,17 +862,17 @@ else
 fi
 
 # ---------- 最終結果 ----------
-echo ""
-echo -e "${BOLD}====== Deploy Result ======${RESET}"
+log ""
+log "${BOLD}====== Deploy Result ======${RESET}"
 TOTAL=${#VALID_DEVICES[@]}
 OK_COUNT=${#SUCCESS[@]}
 SKIP_COUNT=${#SKIPPED[@]}
 FAIL_COUNT=${#FAILED[@]}
-echo -e "  總計: ${TOTAL}  ${GREEN}成功: ${OK_COUNT}${RESET}  ${YELLOW}跳過: ${SKIP_COUNT}${RESET}  ${RED}失敗: ${FAIL_COUNT}${RESET}"
-[[ ${OK_COUNT}   -gt 0 ]] && echo -e "  ${GREEN}成功機種: ${SUCCESS[*]}${RESET}"
-[[ ${SKIP_COUNT} -gt 0 ]] && echo -e "  ${YELLOW}跳過機種: ${SKIPPED[*]}${RESET}  (內容與 remote 一致)"
-[[ ${FAIL_COUNT} -gt 0 ]] && echo -e "  ${RED}失敗機種: ${FAILED[*]}${RESET}"
-echo -e "  Log: ${LOG_FILE}"
-echo -e "==========================="
+log "  總計: ${TOTAL}  ${GREEN}成功: ${OK_COUNT}${RESET}  ${YELLOW}跳過: ${SKIP_COUNT}${RESET}  ${RED}失敗: ${FAIL_COUNT}${RESET}"
+[[ ${OK_COUNT}   -gt 0 ]] && log "  ${GREEN}成功機種: ${SUCCESS[*]}${RESET}"
+[[ ${SKIP_COUNT} -gt 0 ]] && log "  ${YELLOW}跳過機種: ${SKIPPED[*]}${RESET}  (內容與 remote 一致)"
+[[ ${FAIL_COUNT} -gt 0 ]] && log "  ${RED}失敗機種: ${FAILED[*]}${RESET}"
+log "  Log: ${LOG_FILE}"
+log "==========================="
 
 [[ ${FAIL_COUNT} -eq 0 ]] && exit 0 || exit 1

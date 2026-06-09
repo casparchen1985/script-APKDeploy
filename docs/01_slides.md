@@ -233,27 +233,29 @@ Dry-run 印出**所有會執行的指令**但不動 repo，確認無誤再拿掉
 ## 4.1 Demo 1 — 預期輸出（節錄）
 
 ```
-====== APK Deploy Summary ======
-  APP        : ReaderService_CipherLab
-  APK        : ReaderService_CipherLab_V1_3_104.apk
-  版號識別   : 有版號 → 保留舊版共存
-  Libs ABI   : arm64-v8a  (5 個檔案)
-  Author     : Caspar.Chen <Caspar.Chen@cipherlab.com.tw>
-  Message    : SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104
-  Devices    : rs38t
-  Dry-run    : true
-================================
+[05-20 14:30:22] ====== APK Deploy Summary ======
+[05-20 14:30:22]   APP        : ReaderService_CipherLab
+[05-20 14:30:22]   APK        : ReaderService_CipherLab_V1_3_104.apk
+[05-20 14:30:22]   版號識別   : 有版號 → 保留舊版共存
+[05-20 14:30:22]   Libs ABI   : arm64-v8a  (5 個檔案)
+[05-20 14:30:22]   Author     : Caspar.Chen <Caspar.Chen@cipherlab.com.tw>
+[05-20 14:30:22]   Message    : SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104
+[05-20 14:30:22]   Devices    : rs38t
+[05-20 14:30:22]   Dry-run    : true
+[05-20 14:30:22] ================================
 [05-20 14:30:22] ▶  [rs38t] 開始部署
 [05-20 14:30:22] INFO  [rs38t] git checkout master && git clean -fd && git pull
   ...
 [05-20 14:30:25] ✔  [rs38t] 部署成功
   ...
-====== Deploy Result ======
-  總計: 1  成功: 1  跳過: 0  失敗: 0
-  成功機種: rs38t
-  Log: logs/Caspar-ReaderService_CipherLab-20260520_143022.log
-===========================
+[05-20 14:30:25] ====== Deploy Result ======
+[05-20 14:30:25]   總計: 1  成功: 1  跳過: 0  失敗: 0
+[05-20 14:30:25]   成功機種: rs38t
+[05-20 14:30:25]   Log: logs/Caspar-ReaderService_CipherLab-20260520_143022.log
+[05-20 14:30:25] ===========================
 ```
+
+> 每行最前面 `[MM-DD HH:MM:SS]` 是 `log()` 函式統一加上的時間戳；螢幕與 log 檔皆有，log 檔額外濾掉 ANSI 色碼。
 
 > 純 APK 部署輸出格式相同，差別僅在無 `Libs ABI` 那行、驗證項目 5 項而非 8 項。  
 > 重跑時若該機種已部署相同內容，會出現 `跳過: 1`，並印出 SKIPPED 區塊（見 3.3）。
