@@ -131,6 +131,9 @@ apk_deploy/
 
 > **為什麼要顯式檢查？** 主迴圈用 `deploy_device "${dev}" || rc=$?` 區分 SUCCESS/SKIPPED/FAILED 三類、不中斷整批，這個 `||` 會讓函式內 `set -e` 整段失效——必須手動 `|| { err; return 1; }`。
 
+> **SSH timeout（避免 remote 死機讓腳本無限掛住）**：腳本開頭 `export GIT_SSH_COMMAND="ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3"`。  
+> 對所有走 ssh 的 git 操作生效（ls-remote / pull / push / fetch）。最壞情境上限約 **25 秒**（10s connect + 5s × 3 次 keepalive），超時後以非零 exit code 返回，該機種歸 FAILED。
+
 ---
 
 ## 3.2.1 Push 失敗時的 RD 提示

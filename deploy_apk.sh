@@ -43,6 +43,13 @@
 
 set -euo pipefail
 
+# ---------- SSH 超時設定 ----------
+# 避免 remote（gitlab）死機時 git 動作無限掛住：
+#   ConnectTimeout=10        TCP 連線 10s 放棄
+#   ServerAliveInterval=5    建立後每 5s 探測
+#   ServerAliveCountMax=3    連 3 次無回應（15s）斷線
+export GIT_SSH_COMMAND="ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3"
+
 # ---------- 路徑常數 ----------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${SCRIPT_DIR}/config"

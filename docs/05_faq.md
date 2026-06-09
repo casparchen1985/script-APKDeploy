@@ -421,6 +421,20 @@ v1.0.4 在三處補上 `|| { err; return 1; }` 顯式檢查，繞過這個陷阱
 - `ls-remote`：早期 fail-fast，免做後續 file system 動作
 - `git pull` 顯式檢查：防 race / 雙重保險
 
+**Remote 死機（不是斷線）會怎樣？** git 走 SSH，本身沒有應用層 timeout——如果 TCP 已建立但對方 sshd hang，預設會**無限等下去**。本腳本在開頭：
+
+```bash
+export GIT_SSH_COMMAND="ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3"
+```
+
+| 設定 | 效果 |
+|---|---|
+| `ConnectTimeout=10` | TCP 連線階段 10 秒放棄 |
+| `ServerAliveInterval=5` | 連線建立後每 5 秒送 keepalive |
+| `ServerAliveCountMax=3` | 連續 3 次（15 秒）無回應視為斷線 |
+
+最壞情境上限約 **25 秒**（10 connect + 15 keepalive）；超時後 ssh 以非零 exit code 返回 → 落入 `|| { err; return 1; }` 分支 → 該機種歸 FAILED，其他機種繼續。**此 export 對所有走 ssh 的 git 操作生效**（ls-remote / pull / push / fetch 都一樣受 timeout 保護）。
+
 ---
 
 ### Q33. 為什麼 `git push` 失敗不 rollback local commit？

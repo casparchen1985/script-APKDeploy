@@ -291,6 +291,8 @@ toBeUploaded/
 ```
 [0] 預檢 remote 連線
     git -C <repo> ls-remote --exit-code origin master
+    （走 GIT_SSH_COMMAND 設定：ConnectTimeout=10s, ServerAliveInterval=5s × 3 次
+       → remote 死機最多等約 25s 就斷線）
     失敗 → err + return 1，此機種歸 FAILED，其他機種繼續
          ↓
 [1] git checkout master
@@ -339,6 +341,12 @@ toBeUploaded/
 
 > **為什麼 step 0、step 1、step 5a/5b 都要顯式檢查 exit code？**  
 > Bash 的 `set -e` 有個反直覺的例外：當函式被 `if` / `&&` / `||` / `!` 包住呼叫時，函式內部的 `set -e` 整段失效。本腳本主迴圈是 `deploy_device "${dev}" || rc=$?`（用來區分 SUCCESS / SKIPPED / FAILED 三類），這個 `||` 一樣會讓函式內 `set -e` 失效，所以所有 git 動作都必須**手動**用 `|| { err; return 1; }` 抓 exit code，不能仰賴 `set -e` 自動 abort。否則 remote 壞掉時 `git pull` 失敗會被「靜默忽略」，腳本繼續在過時 master 上做事、commit、誤刪 staging APK。
+
+> **SSH timeout：避免 remote 死機讓腳本無限掛住**  
+> git 對 remote 的所有操作（ls-remote / pull / push / fetch）走 SSH；預設沒有應用層 timeout，若 gitlab 半死（TCP 已建立但 sshd 無回應），git 會永遠等下去。本腳本在開頭 `export GIT_SSH_COMMAND="ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3"`：
+> - `ConnectTimeout=10`：TCP 連線階段 10 秒放棄
+> - `ServerAliveInterval=5` + `ServerAliveCountMax=3`：連線建立後每 5 秒探測，連續 3 次（15 秒）無回應視為斷線
+> - 最壞情境上限約 **25 秒**，超過會以非零 exit code 返回，落入 step 0 的 `|| { err; return 1; }` 分支，該機種歸 FAILED。
 
 ### Push 失敗時的提示訊息範例
 
