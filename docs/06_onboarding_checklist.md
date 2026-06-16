@@ -12,7 +12,7 @@
 ### A.1 帳號與權限
 - [ ] 有 `app_dev@192.168.8.17` 的 ssh 權限（公鑰已加入 server 的 `authorized_keys`）
 - [ ] 有 GitLab `app-dev/android/automation/scriptapkdeploy` repo 的 read 權限
-- [ ] 有各機種 device repo 的 push 權限（master branch）
+- [ ] 有各機種 device repo 的 push 權限（push 目標 branch 見 `config/devices.conf`，預設 `master`；個別機種如 `rk95p` 為 `CIPHERLAB_MASTER`）
 
 ### A.2 在 server 上拉腳本（若 `~/apk_deploy/` 不存在）
 - [ ] `ssh app_dev@192.168.8.17`
@@ -55,7 +55,8 @@
 ### B.1 前置確認
 - [ ] 機種代號已確認（建議小寫，如 `rk97`）
 - [ ] Repo 路徑已確認（如 `~/rk97/LA.QSSI.17.0`）
-- [ ] Server 上該 repo 已 clone 且可 `git pull origin master`
+- [ ] 部署用的 branch 已確認（預設 `master`；若非預設需用 `DEVICE_<name>_BRANCH` 覆寫）
+- [ ] Server 上該 repo 已 clone 且可 `git pull origin <branch>`
 
 ### B.2 確認 repo 結構符合腳本預期
 - [ ] 存在 `<repo>/vendor/cipherlab/` 目錄（或對應的 `APK_SUBDIR`）
@@ -68,6 +69,7 @@
 ### B.3 更新 `config/devices.conf`
 - [ ] 加入一行：`DEVICE_<name>="~/<repo-path>"`
 - [ ] 若路徑非預設 `vendor/cipherlab/`，加 `DEVICE_<name>_APK_SUBDIR="<custom-path>"`
+- [ ] 若 branch 非預設 `master`，加 `DEVICE_<name>_BRANCH="<branch-name>"`
 
 ### B.4 提交設定變更
 - [ ] `cd ~/apk_deploy && git add config/devices.conf`

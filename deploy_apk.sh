@@ -514,6 +514,10 @@ deploy_device() {
   local subdir_var="DEVICE_${dev}_APK_SUBDIR"
   local EFFECTIVE_APK_SUBDIR="${!subdir_var:-${APK_SUBDIR}}"
 
+  # 機種專屬 branch 覆寫：DEVICE_<NAME>_BRANCH 優先，否則使用全域 BRANCH
+  local branch_var="DEVICE_${dev}_BRANCH"
+  local EFFECTIVE_BRANCH="${!branch_var:-${BRANCH}}"
+
   # APK 與 Android.mk 都在 <EFFECTIVE_APK_SUBDIR>/<APP_NAME>/ 下
   local MODULE_DIR="${REPO}/${EFFECTIVE_APK_SUBDIR}/${APP_NAME}"
   local APK_DEST_DIR="${MODULE_DIR}"
@@ -526,21 +530,21 @@ deploy_device() {
   log "${CYAN}${SEP}${RESET}"
 
   # 0. 預檢 remote 連線（純查詢，動 local 之前先確認 remote 通）
-  info "[${dev}] 預檢 remote 連線: git ls-remote origin master"
-  run "git -C '${REPO}' ls-remote --exit-code origin master >/dev/null" \
+  info "[${dev}] 預檢 remote 連線: git ls-remote origin ${EFFECTIVE_BRANCH}"
+  run "git -C '${REPO}' ls-remote --exit-code origin ${EFFECTIVE_BRANCH} >/dev/null" \
     || { err "[${dev}] 無法連到 remote（git ls-remote 失敗），跳過此機種"; return 1; }
   ok "[${dev}] remote 連線正常"
 
-  # 1. git checkout master + clean + pull
-  info "[${dev}] git checkout master && git clean -fd && git pull"
-  run "cd '${REPO}' && git checkout master && git clean -fd && git pull origin master" \
+  # 1. git checkout <branch> + clean + pull
+  info "[${dev}] git checkout ${EFFECTIVE_BRANCH} && git clean -fd && git pull"
+  run "cd '${REPO}' && git checkout ${EFFECTIVE_BRANCH} && git clean -fd && git pull origin ${EFFECTIVE_BRANCH}" \
     || { err "[${dev}] git pull 失敗（exit code 非零），跳過此機種"; return 1; }
-  ok "[${dev}] repo 已同步到最新 master"
+  ok "[${dev}] repo 已同步到最新 ${EFFECTIVE_BRANCH}"
 
   # 1.5. SKIPPED 偵測：以下 5 條件全相符 → return 2
   #   (1) APK 檔在 remote repo 且 MD5 == staging
   #   (2) --libs 提供時，staging 每檔在 remote 都存在且 MD5 一致
-  #   (3) HEAD 已推送（HEAD == origin/master，避免 push-fail 後 retry 誤觸 SKIPPED）
+  #   (3) HEAD 已推送（HEAD == origin/<branch>，避免 push-fail 後 retry 誤觸 SKIPPED）
   #   (4) HEAD commit author name + email == --author 經 authors.conf 查表後的 name + email
   #   (5) HEAD commit message == --message
   local DEPLOYED_APK="${APK_DEST_DIR}/${APK_FILENAME}"
@@ -555,10 +559,10 @@ deploy_device() {
     SKIP_HEAD_MSG=$(git   -C "${REPO}" log -1 --pretty=format:"%s"  2>/dev/null || echo "")
     SKIP_HEAD_HASH=$(git  -C "${REPO}" rev-parse --short HEAD       2>/dev/null || echo "?")
 
-    # HEAD 必須等於 origin/master，否則代表 local 有未推送 commit（例如 push 失敗的殘留）
+    # HEAD 必須等於 origin/<branch>，否則代表 local 有未推送 commit（例如 push 失敗的殘留）
     local SKIP_LOCAL_HEAD SKIP_REMOTE_HEAD
-    SKIP_LOCAL_HEAD=$(git  -C "${REPO}" rev-parse HEAD            2>/dev/null || echo "")
-    SKIP_REMOTE_HEAD=$(git -C "${REPO}" rev-parse origin/master   2>/dev/null || echo "")
+    SKIP_LOCAL_HEAD=$(git  -C "${REPO}" rev-parse HEAD                         2>/dev/null || echo "")
+    SKIP_REMOTE_HEAD=$(git -C "${REPO}" rev-parse "origin/${EFFECTIVE_BRANCH}" 2>/dev/null || echo "")
 
     # 有 --libs 時：staging 內每個檔案都必須存在 remote 且 MD5 相同
     local SKIP_LIBS_MATCH=true
@@ -585,7 +589,7 @@ deploy_device() {
       log "${YELLOW}  ⊘  [${dev}] SKIPPED — remote 已含相同部署${RESET}"
       log "${YELLOW}${SEP}${RESET}"
       log "  └─ APK MD5     : ${SKIP_APK_MD5_REMOTE}"
-      log "  └─ Commit hash : ${SKIP_HEAD_HASH} (HEAD == origin/master)"
+      log "  └─ Commit hash : ${SKIP_HEAD_HASH} (HEAD == origin/${EFFECTIVE_BRANCH})"
       log "  └─ Author      : ${SKIP_HEAD_NAME} <${SKIP_HEAD_EMAIL}>"
       log "  └─ Commit msg  : ${SKIP_HEAD_MSG}"
       [[ -n "${LIBS_PATH}" ]] && log "  └─ Libs        : ${#LIB_FILES[@]} 檔 MD5 全相符"
@@ -630,15 +634,15 @@ deploy_device() {
   local LOCAL_HASH
   LOCAL_HASH=$(git -C "${REPO}" rev-parse --short HEAD 2>/dev/null || echo "?")
 
-  run "cd '${REPO}' && git push origin master" \
+  run "cd '${REPO}' && git push origin ${EFFECTIVE_BRANCH}" \
     || {
       err "[${dev}] git push 失敗（exit code 非零）"
       err "[${dev}] 注意：local commit 已建立但未推送至 remote，請手動處理："
       err "[${dev}]     Repo    : ${REPO}"
-      err "[${dev}]     Branch  : master"
+      err "[${dev}]     Branch  : ${EFFECTIVE_BRANCH}"
       err "[${dev}]     Hash    : ${LOCAL_HASH}"
       err "[${dev}]     Message : ${COMMIT_MSG}"
-      err "[${dev}]     後續    : remote 恢復後執行 cd '${REPO}' && git push origin master"
+      err "[${dev}]     後續    : remote 恢復後執行 cd '${REPO}' && git push origin ${EFFECTIVE_BRANCH}"
       return 1
     }
   ok "[${dev}] push 完成"

@@ -57,12 +57,13 @@ cd ~/apk_deploy
 |---|---|---|---|
 | `rk26s` | `~/rk26s/LA.QSSI.12.0` | `rs38t` | `~/rs38t/titan_qssi13` |
 | `rk26u` | `~/rk26plus/LA.QSSI.14.0.R1` | `rs38v` | `~/rs38v/titan_qssi15` |
-| `rs35q` | `~/rs35` | `rk95p` | `~/rk95` |
+| `rs35q` | `~/rs35` | `rk95p` | `~/rk95` ★ branch=`CIPHERLAB_MASTER` |
 | `rs35r` | `~/rs35r` | `rk95s` | `~/rk95s` |
 | `rs36s` | `~/rs36s/LA.QSSI.12.0` | `rk95u` | `~/rk95u` |
 | `rs36u` | `~/rs36plus/LA.QSSI.14.0.R1` | `rk96v` | `~/rk96v/LA.QSSI.15.0` |
 
-> 新增機種：在 `config/devices.conf` 加一行 `DEVICE_<name>="~/path"`，立即可用。
+> 新增機種：在 `config/devices.conf` 加一行 `DEVICE_<name>="~/path"`，立即可用。  
+> 全域 branch 預設 `master`；非預設機種以 `DEVICE_<name>_BRANCH="<branch>"` 覆寫（例如 `rk95p`）。
 
 ---
 
@@ -127,7 +128,7 @@ cd ~/apk_deploy
 
 1. `<APK_DEST_DIR>/<APK_FILENAME>` 存在 + MD5 == staging APK MD5
 2. `--libs` 提供時，staging 內每個檔案在 remote 都存在且 MD5 一致
-3. **HEAD == origin/master**（HEAD 已推送；避免 push-fail 重跑誤觸 SKIPPED）
+3. **HEAD == origin/`<branch>`**（HEAD 已推送；避免 push-fail 重跑誤觸 SKIPPED）`<branch>` 來自 `devices.conf` 全域 `BRANCH` 或 `DEVICE_<NAME>_BRANCH` 覆寫
 4. HEAD commit author name + email == `--author` 經 authors.conf 查表後的 name + email
 5. HEAD commit message == `--message` 參數
 
@@ -182,7 +183,7 @@ vim deploy_plan.xml
 | `Commit message 不符` | 部署中途別人 push 進來了 | 看 `git log -1`，與相關 RD 協調 |
 | `無法連到 remote（git ls-remote 失敗）` | VPN / DNS / auth / URL / remote repo 異常 | 解 remote 連線後重跑；該機種零殘留（local 未動） |
 | `git pull 失敗（exit code 非零）` | Remote 連線異常或衝突 | 連線恢復後重跑；衝突情況 `cd <repo> && git status` 排查 |
-| `git push 失敗（local commit 已建立）` | Remote 連線異常 / non-fast-forward | 依 log 印出的 hash 與「後續」指令手動 push；或 `git reset --hard origin/master` 丟棄後重跑 |
+| `git push 失敗（local commit 已建立）` | Remote 連線異常 / non-fast-forward | 依 log 印出的 hash 與「後續」指令手動 push；或 `git reset --hard origin/<branch>` 丟棄後重跑（`<branch>` 見 `devices.conf`） |
 
 ---
 

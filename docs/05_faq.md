@@ -38,8 +38,8 @@
 **短答**：Ctrl+C 中斷時，**已完成的機種已 push 出去**，未完成的不會動到。Staging APK 會被保留供重試。
 
 **延伸**：
-- 若中斷時剛好在某機種的中段（例如 Android.mk 改完但 push 失敗），**該機種會留下 dirty working tree**，需手動 `git checkout .` 或 `git reset --hard origin/master`。
-- 重跑相同指令時，腳本會 `git checkout master && git clean -fd && git pull`，**會清掉 dirty state**。
+- 若中斷時剛好在某機種的中段（例如 Android.mk 改完但 push 失敗），**該機種會留下 dirty working tree**，需手動 `git checkout .` 或 `git reset --hard origin/<branch>`（`<branch>` 見 `devices.conf`）。
+- 重跑相同指令時，腳本會 `git checkout <branch> && git clean -fd && git pull`，**會清掉 dirty state**。
 
 ---
 
@@ -54,13 +54,15 @@
 - push 失敗的機種：local commit 保留不 rollback（見 Q7），log 印出 repo / hash / 手動 push 指令。
 - 修好 remote 後**重跑相同指令**即可——SKIPPED 偵測會自動把各機種分類：
   - 上一輪已部署完成（HEAD 已推送）的機種 → step 1.5 五項全符 → **歸 `跳過`**
-  - 上一輪 push 失敗（local 有未推送 commit）的機種 → SKIPPED 第 3 條件 `HEAD == origin/master` 不過 → 走正常流程，但 step 5a 會因 working tree 已是 commit 後的乾淨狀態而 nothing-to-commit → **歸 `失敗`**，需要手動補救
+  - 上一輪 push 失敗（local 有未推送 commit）的機種 → SKIPPED 第 3 條件 `HEAD == origin/<branch>` 不過 → 走正常流程，但 step 5a 會因 working tree 已是 commit 後的乾淨狀態而 nothing-to-commit → **歸 `失敗`**，需要手動補救
   - 上一輪就已 SKIPPED 過的機種 → 仍然 `跳過`
 - 不需要手動從 `--device` 拿掉任何機種；SKIPPED 偵測會自動處理。
 
 **push 失敗機種的補救方式**（擇一）：
-- **方式 A（推薦）**：依 log 的「後續」提示手動 `cd <repo> && git push origin master` 把那個 local commit 推上去；下次重跑該機種會被 SKIPPED 通過
-- **方式 B**：`cd <repo> && git reset --hard origin/master` 砍掉 local commit，下次重跑會走完整 step 2-6 流程
+- **方式 A（推薦）**：依 log 的「後續」提示手動 `cd <repo> && git push origin <branch>` 把那個 local commit 推上去；下次重跑該機種會被 SKIPPED 通過
+- **方式 B**：`cd <repo> && git reset --hard origin/<branch>` 砍掉 local commit，下次重跑會走完整 step 2-6 流程
+
+> `<branch>` 來自 `devices.conf` 全域 `BRANCH` 或 `DEVICE_<NAME>_BRANCH` 覆寫；log 印出的「後續」提示已含正確 branch 名稱，直接複製貼上即可。
 
 ---
 
@@ -72,7 +74,7 @@
 ssh app_dev@192.168.8.17
 cd ~/<device-repo>
 git revert <wrong-commit>   # 或 git reset --hard <good-commit>
-git push origin master
+git push origin <branch>    # <branch> 對應該機種在 devices.conf 的設定（預設 master）
 ```
 
 **延伸**：
@@ -100,7 +102,7 @@ ERROR [rs38t]     後續    : remote 恢復後執行 cd '/home/app_dev/rs38t/tit
 
 兩種補救方式：
 1. **直接 push**：remote 恢復後依提示貼上後續指令即可推送原本的 commit。
-2. **重跑相同部署指令**：腳本會先 `git pull origin master` fast-forward，但本地未 push commit 可能會擋住——此時需 `cd <repo> && git reset --hard origin/master` 後再重跑（這會丟掉那個 commit，由腳本重新建立）。
+2. **重跑相同部署指令**：腳本會先 `git pull origin <branch>` fast-forward，但本地未 push commit 可能會擋住——此時需 `cd <repo> && git reset --hard origin/<branch>` 後再重跑（這會丟掉那個 commit，由腳本重新建立）。`<branch>` 即 `devices.conf` 中該機種的設定。
 
 ---
 
@@ -110,10 +112,10 @@ ERROR [rs38t]     後續    : remote 恢復後執行 cd '/home/app_dev/rs38t/tit
 
 ```bash
 git commit --amend --author="Correct.Name <correct@cipherlab.com.tw>"
-git push --force-with-lease origin master
+git push --force-with-lease origin <branch>    # <branch> 對應該機種在 devices.conf 的設定
 ```
 
-**延伸**：force push 到 master 需要與其他 RD 協調（避免覆蓋別人的 commit）。
+**延伸**：force push 到部署 branch 需要與其他 RD 協調（避免覆蓋別人的 commit）。
 
 ---
 
@@ -149,6 +151,22 @@ DEVICE_rk25_APK_SUBDIR="android/vendor/cipherlab/prebuilt/rk25"  # rk25 專屬
 ```
 
 優先順序：機種專屬 > 全域。未設定者自動 fallback 全域，**不必每個機種都寫**。
+
+---
+
+### Q10.1. 不同機種的 git branch 不一樣怎麼辦？
+
+**短答**：用 `DEVICE_<NAME>_BRANCH` 覆寫該機種的 branch。
+
+```bash
+# devices.conf
+BRANCH="master"                          # 全域預設
+DEVICE_rk95p_BRANCH="CIPHERLAB_MASTER"   # rk95p 專屬
+```
+
+優先順序：機種專屬 > 全域。未設定者自動 fallback 全域。
+
+**延伸**：影響範圍是腳本內所有 git 操作（`ls-remote` / `checkout` / `pull` / `push`），以及 SKIPPED 偵測第 3 條件 `HEAD == origin/<branch>` 與 push 失敗時印出的「後續」提示——都會自動帶入該機種的設定值，RD 看到什麼貼什麼即可，不必記得對應的 branch。
 
 ---
 
@@ -284,7 +302,7 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 
 **短答**：腳本會在 `git pull` 失敗時把該機種歸到 FAILED 並 `return 1`（**不嘗試自動解衝突、不中斷其他機種**），log 印出 `git pull 失敗（exit code 非零），跳過此機種`。
 
-**延伸**：因為 `git checkout master && git clean -fd` 已先做了，正常情況不應有 conflict（除非有人在 server 上手動改了該 repo）。發生時請手動處理該 repo（`git status` 確認 → 解衝突或 `git reset --hard origin/master`）再重跑相同指令。Staging APK + libs 會自動保留供重試。
+**延伸**：因為 `git checkout <branch> && git clean -fd` 已先做了，正常情況不應有 conflict（除非有人在 server 上手動改了該 repo）。發生時請手動處理該 repo（`git status` 確認 → 解衝突或 `git reset --hard origin/<branch>`）再重跑相同指令。Staging APK + libs 會自動保留供重試。`<branch>` 對應該機種在 `devices.conf` 的設定。
 
 ---
 
@@ -293,7 +311,7 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 **短答**：腳本**沒有 lock**。兩人同時跑同一機種有機率：
 
 - 一方 push 被拒（remote tip changed，non-fast-forward），該機種會被歸到 FAILED 並 return 1，**local commit 保留**並印出手動 push 提示（見 Q7）。
-- 另一方成功後，第一方重跑時會 `git pull` 對齊。重跑前需先處理那個未推送的 local commit（`git reset --hard origin/master` 丟棄，或先手動 `git push --force-with-lease` 推上去）。
+- 另一方成功後，第一方重跑時會 `git pull` 對齊。重跑前需先處理那個未推送的 local commit（`git reset --hard origin/<branch>` 丟棄，或先手動 `git push --force-with-lease` 推上去）。
 
 **延伸**：建議 release window 有人協調，目前**沒有看到實際衝突**過。長期可加 file lock。
 
@@ -301,7 +319,7 @@ git log -1 --pretty=format:"%h %an %s" -- Android.mk
 
 ### Q23. Server 上的 repo 被別人手動 push 了 commit，會被洗掉嗎？
 
-**短答**：**不會**。腳本只在自己這次部署的範圍內 commit，`git pull origin master` 會先拉下別人的 commit。
+**短答**：**不會**。腳本只在自己這次部署的範圍內 commit，`git pull origin <branch>` 會先拉下別人的 commit。
 
 **延伸**：但若別人剛好 push 了相同 `Android.mk` 的改動，腳本的 Python 改寫可能會產生 merge conflict — 此時 `git pull` 失敗，該機種歸到 FAILED 並 `return 1`（不中斷其他機種，staging 自動保留供重試，見 Q21）。
 
@@ -391,13 +409,13 @@ toBeUploaded/<App>/
 **延伸**：v1.0.3 以前，`deploy_device` 內部完全依賴 `set -e` 自動 abort。但主迴圈是 `if deploy_device "${dev}"; then ...`（為了收集失敗機種、不中斷整批），這個 `if` 會讓 bash 把函式內 `set -e` 整段視為**已禁用**。後果：
 
 - `git pull` 因 remote 斷線失敗時，`run` 內 subshell exit 非零，但函式不 abort，繼續往下跑
-- log 反而印出 `OK [${dev}] repo 已同步到最新 master`（假成功）
-- 後續以**過時 master** 做 cp / 改 Android.mk / commit
+- log 反而印出 `OK [${dev}] repo 已同步到最新 <branch>`（假成功）
+- 後續以**過時的 branch** 做 cp / 改 Android.mk / commit
 - `git push` 同樣失敗，但又繼續往下，`OK [${dev}] push 完成`（再次假成功）
 - verify_device 檢查的是 HEAD（包含未推送的 local commit），全部 PASS
 - 主流程判斷「全機種成功」→ `rm` 掉 staging APK + libs
 
-最糟結果：**RD 看到「全部成功」訊息，但 remote 上其實沒有任何 commit，且原檔已被刪除**。多 RD 共用同一 server 時，未推送 commit 還會在 local master 累積。
+最糟結果：**RD 看到「全部成功」訊息，但 remote 上其實沒有任何 commit，且原檔已被刪除**。多 RD 共用同一 server 時，未推送 commit 還會在各機種 local branch 累積。
 
 v1.0.4 在三處補上 `|| { err; return 1; }` 顯式檢查，繞過這個陷阱。
 
@@ -411,9 +429,9 @@ v1.0.4 在三處補上 `|| { err; return 1; }` 顯式檢查，繞過這個陷阱
 
 - `git pull` = fetch + merge，跑起來涉及 download object + merge working tree，是有破壞性的操作
 - 直接靠 `git pull` 失敗來判斷 remote 是否壞掉，會在它之前的 `git clean -fd` 已經跑過（雖然本腳本流程無害，但語意上「動 local 之前先確認 remote」更乾淨）
-- `ls-remote --exit-code origin master` 只查 remote 的 refs：
+- `ls-remote --exit-code origin <branch>` 只查 remote 的 refs（`<branch>` 來自 `devices.conf`）：
   - 連不上 / DNS 錯 / VPN 沒開 / auth 過期 / URL 變了 → 非零
-  - `--exit-code` 旗標讓「remote 沒有 `master` 這個 ref」也回非零
+  - `--exit-code` 旗標讓「remote 沒有 `<branch>` 這個 ref」也回非零
   - 不下載任何 object、不動 local 狀態
 - 預檢成功不代表 `git pull` 一定成功（remote 可能在預檢與 pull 之間斷掉，雖然罕見），所以 `git pull` 後**仍然要**檢查 exit code
 
@@ -462,11 +480,12 @@ export GIT_SSH_COMMAND="ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o Ser
 ssh app_dev@192.168.8.17
 for d in ~/rk26s/LA.QSSI.12.0 ~/rs36s/LA.QSSI.12.0 ~/rs38t/titan_qssi13 ...; do
   echo "=== $d ==="
-  git -C "$d" log origin/master..HEAD --oneline
+  # 用 @{u}（當前 branch 的 upstream）比對，無需 hard-code branch 名稱
+  git -C "$d" log @{u}..HEAD --oneline
 done
 ```
 
-有輸出的 repo 就是有未推送 commit。確認 commit 內容無誤後 `git -C <repo> push origin master`，或要丟棄就 `git -C <repo> reset --hard origin/master`。
+有輸出的 repo 就是有未推送 commit。確認 commit 內容無誤後 `git -C <repo> push`（或 `git -C <repo> push origin HEAD`），或要丟棄就 `git -C <repo> reset --hard @{u}`。
 
 ---
 
@@ -480,7 +499,7 @@ done
 
 1. `<APK_DEST_DIR>/<APK_FILENAME>` 存在 + staging APK MD5 == remote APK MD5
 2. `--libs` 提供時，staging 內**每個** `LIB_FILES` 對應 remote 的檔案 MD5 必須一致
-3. `HEAD == origin/master`——HEAD 必須等於 remote tip（避免 push-fail 後 local 有未推送 commit 時誤觸 SKIPPED；見 Q36）
+3. `HEAD == origin/<branch>`——HEAD 必須等於 remote tip（避免 push-fail 後 local 有未推送 commit 時誤觸 SKIPPED；見 Q36）。`<branch>` 來自 `devices.conf`。
 4. HEAD commit author name + email == `--author` 經 authors.conf 查表後的 name + email
 5. HEAD commit message == `--message` 參數
 
@@ -508,7 +527,7 @@ v1.0.4 修好後：
 
 雖然「誠實」但 RD 看起來很困惑。SKIPPED 偵測在 step 1.5 就把這種情況攔住，**讓「重跑」不會被誤標 FAILED**。
 
-**`HEAD == origin/master` 這條的特殊用途**：v1.0.4 之後 push 失敗會保留 local commit（不 rollback）。如果 SKIPPED 只比對 local 屬性（APK MD5 + commit author/email/message），「commit 完成但 push 失敗」的機種重跑時會**看起來全部符合**而被誤標 SKIPPED——但實際上 remote 根本沒這個 commit！加上 HEAD 必須等於 remote tip 這條，就把這種「local 一致、remote 不同步」的狀態擋掉，正確走回 FAILED 流程，由 RD 手動處理。
+**`HEAD == origin/<branch>` 這條的特殊用途**：v1.0.4 之後 push 失敗會保留 local commit（不 rollback）。如果 SKIPPED 只比對 local 屬性（APK MD5 + commit author/email/message），「commit 完成但 push 失敗」的機種重跑時會**看起來全部符合**而被誤標 SKIPPED——但實際上 remote 根本沒這個 commit！加上 HEAD 必須等於 remote tip 這條，就把這種「local 一致、remote 不同步」的狀態擋掉，正確走回 FAILED 流程，由 RD 手動處理。
 
 ---
 

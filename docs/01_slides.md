@@ -37,7 +37,7 @@ layout: cover
 每次 release 一支 APK 到 N 個機種，RD 必須：
 
 1. SSH 進 upload server，逐一 `cd` 進到每個 model 存放 apk 的位置
-2. `git checkout master` → `git clean -df` → `git pull origin master`，將 server 狀態同步到最新版
+2. `git checkout <branch>` → `git clean -df` → `git pull origin <branch>`，將 server 狀態同步到最新版
 3. 把 APK 複製到 `vendor/cipherlab/<APP>/`
 4. **(含 JNI libs 時)** 把需要的 libs 檔案複製到 `vendor/cipherlab/<APP>/libs/<ABI>/`  
 5. 修改 `Android.mk`：  
@@ -91,9 +91,9 @@ apk_deploy/
 ## 3.1 每台機種的執行流程
 
 ```
-[0] git ls-remote origin master       (預檢 remote 連線，純查詢)
+[0] git ls-remote origin <branch>     (預檢 remote 連線，純查詢)
        ↓
-[1] git checkout master → clean -fd → pull origin master
+[1] git checkout <branch> → clean -fd → pull origin <branch>
        ↓
 [1.5] SKIPPED 偵測（APK MD5 + libs MD5 + commit author/email/msg 全相符）
        ↓ 不符才繼續
@@ -108,12 +108,14 @@ apk_deploy/
        LOCAL_PREBUILT_JNI_LIBS       ← enumerate remote (libs)
        ↓
 [5a] git add → git commit --author=...
-[5b] git push origin master                (push 與 commit 分開檢查)
+[5b] git push origin <branch>              (push 與 commit 分開檢查)
        ↓
 [6] 自動驗證（可 --no-verify 略過）— 純 APK 5 項，含 libs 8 項
 ```
 
 機種三分類：**SUCCESS / SKIPPED / FAILED**，任一機種失敗不影響其他機種繼續部署。
+
+> `<branch>` 由 `devices.conf` 控制：全域 `BRANCH` 或 `DEVICE_<NAME>_BRANCH` 覆寫。
 
 ---
 
@@ -162,7 +164,7 @@ ERROR [rs38t]     後續    : remote 恢復後執行 cd '/home/app_dev/rs38t/tit
 |---|---|
 | APK 檔名 + MD5 | `<APK_DEST_DIR>/<APK_FILENAME>` |
 | Libs MD5（有 --libs 時） | staging 內每個 `LIB_FILES` 對 remote `LIBS_REMOTE_DIR/<rel>` |
-| **HEAD == origin/master** | 確保 HEAD 已推送，避免 push-fail 重跑誤觸 SKIPPED |
+| **HEAD == origin/`<branch>`** | 確保 HEAD 已推送，避免 push-fail 重跑誤觸 SKIPPED |
 | Commit author name + email | `git log -1` 比 **`--author` 經 authors.conf 查表後** 的 name + email |
 | Commit message | `git log -1` 比 `--message` 參數 |
 
@@ -182,7 +184,7 @@ ERROR [rs38t]     後續    : remote 恢復後執行 cd '/home/app_dev/rs38t/tit
 ```
 
 > **設計動機**：失敗重跑時，已部署成功的機種會被自動識別，**不會再次嘗試 commit 然後因「nothing to commit」失敗**，也不會誤標 FAILED。  
-> **HEAD == origin/master 這條的特殊用途**：v1.0.4 引入「push 失敗保留 local commit」後，純比對 local 屬性會誤把「commit 完但 push 失敗」的機種當成 SKIPPED——加上 HEAD 必須等於 remote tip 這條就能擋掉。
+> **HEAD == origin/`<branch>` 這條的特殊用途**：v1.0.4 引入「push 失敗保留 local commit」後，純比對 local 屬性會誤把「commit 完但 push 失敗」的機種當成 SKIPPED——加上 HEAD 必須等於 remote tip 這條就能擋掉。
 
 ---
 

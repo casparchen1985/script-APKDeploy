@@ -69,6 +69,12 @@ APK_SUBDIR="vendor/cipherlab"
 # 機種專屬 APK 目錄覆寫（有需要才取消註解）
 # DEVICE_rk25_APK_SUBDIR="android/vendor/cipherlab/prebuilt/rk25"
 
+# Git branch（全域預設）
+BRANCH="master"
+
+# 機種專屬 branch 覆寫（有需要才取消註解）
+DEVICE_rk95p_BRANCH="CIPHERLAB_MASTER"
+
 # APK 暫存目錄：所有 APK 統一放在此平坦目錄，不分子目錄
 # 部署成功的 APK 自動刪除；失敗或未使用的保留，方便重試
 APK_STAGING_DIR=""  # 留空 = 自動使用 <SCRIPT_DIR>/toBeUploaded/
@@ -290,21 +296,21 @@ toBeUploaded/
 
 ```
 [0] 預檢 remote 連線
-    git -C <repo> ls-remote --exit-code origin master
+    git -C <repo> ls-remote --exit-code origin <branch>
     （走 GIT_SSH_COMMAND 設定：ConnectTimeout=10s, ServerAliveInterval=5s × 3 次
        → remote 死機最多等約 25s 就斷線）
     失敗 → err + return 1，此機種歸 FAILED，其他機種繼續
          ↓
-[1] git checkout master
+[1] git checkout <branch>
     git clean -fd
-    git pull origin master
+    git pull origin <branch>
     pull 失敗 → err + return 1，此機種歸 FAILED，其他機種繼續
          ↓
 [1.5] SKIPPED 偵測（pull 之後比對 remote 現況）
     若以下「全部相符」→ return 2，此機種歸 SKIPPED，跳過 step 2-6：
       - <APK_DEST_DIR>/<APK_FILENAME> 存在且 staging APK MD5 一致
       - --libs 提供時，staging 內每個檔案在 remote 都存在且 MD5 一致
-      - HEAD == origin/master（HEAD 已推送；避免 push-fail 重跑誤觸 SKIPPED）
+      - HEAD == origin/<branch>（HEAD 已推送；避免 push-fail 重跑誤觸 SKIPPED）
       - HEAD commit author name + email == --author 經 authors.conf 查表後的 name + email
       - HEAD commit message             == --message 參數
          ↓
@@ -325,7 +331,8 @@ toBeUploaded/
     commit message 來自 --message 參數
     add / commit 失敗 → err + return 1，此機種歸 FAILED（無 local commit 殘留）
          ↓
-[5b] git push origin master
+[5b] git push origin <branch>
+     <branch> 來自 devices.conf：全域 BRANCH 或 DEVICE_<NAME>_BRANCH 覆寫
     push 失敗 → err + return 1，但保留 local commit
               並印出 RD 手動處理資訊（repo / branch / hash / message / 後續指令）
          ↓
@@ -340,7 +347,7 @@ toBeUploaded/
 ```
 
 > **為什麼 step 0、step 1、step 5a/5b 都要顯式檢查 exit code？**  
-> Bash 的 `set -e` 有個反直覺的例外：當函式被 `if` / `&&` / `||` / `!` 包住呼叫時，函式內部的 `set -e` 整段失效。本腳本主迴圈是 `deploy_device "${dev}" || rc=$?`（用來區分 SUCCESS / SKIPPED / FAILED 三類），這個 `||` 一樣會讓函式內 `set -e` 失效，所以所有 git 動作都必須**手動**用 `|| { err; return 1; }` 抓 exit code，不能仰賴 `set -e` 自動 abort。否則 remote 壞掉時 `git pull` 失敗會被「靜默忽略」，腳本繼續在過時 master 上做事、commit、誤刪 staging APK。
+> Bash 的 `set -e` 有個反直覺的例外：當函式被 `if` / `&&` / `||` / `!` 包住呼叫時，函式內部的 `set -e` 整段失效。本腳本主迴圈是 `deploy_device "${dev}" || rc=$?`（用來區分 SUCCESS / SKIPPED / FAILED 三類），這個 `||` 一樣會讓函式內 `set -e` 失效，所以所有 git 動作都必須**手動**用 `|| { err; return 1; }` 抓 exit code，不能仰賴 `set -e` 自動 abort。否則 remote 壞掉時 `git pull` 失敗會被「靜默忽略」，腳本繼續在過時 branch 上做事、commit、誤刪 staging APK。
 
 > **SSH timeout：避免 remote 死機讓腳本無限掛住**  
 > git 對 remote 的所有操作（ls-remote / pull / push / fetch）走 SSH；預設沒有應用層 timeout，若 gitlab 半死（TCP 已建立但 sshd 無回應），git 會永遠等下去。本腳本在開頭 `export GIT_SSH_COMMAND="ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=3"`：
@@ -629,6 +636,20 @@ DEVICE_rk25_APK_SUBDIR="android/vendor/cipherlab/prebuilt/rk25"
 ```
 
 優先順序：`DEVICE_<NAME>_APK_SUBDIR`（有設定）> `APK_SUBDIR`（全域預設）。未設定機種專屬值時自動 fallback 到全域預設，無需每個機種都填寫。
+
+**修改部署用的 git branch：**
+
+`BRANCH` 是全域預設值，腳本所有 git 操作（`ls-remote` / `checkout` / `pull` / `push`）都使用此 branch。若特定機種的 branch 不同，可用 `DEVICE_<NAME>_BRANCH` 覆寫，不影響其他機種。
+
+```bash
+# 全域預設（所有機種共用）
+BRANCH="master"
+
+# 機種專屬覆寫（僅該機種生效）
+DEVICE_rk95p_BRANCH="CIPHERLAB_MASTER"
+```
+
+優先順序：`DEVICE_<NAME>_BRANCH`（有設定）> `BRANCH`（全域預設）。
 
 ---
 
