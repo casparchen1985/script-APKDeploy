@@ -30,7 +30,9 @@
     <author>Bob</author>
     <message>SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
     <devices>
+      <device>rs36s</device>
       <device>rs38t</device>
+      <device>rk95u</device>
     </devices>
   </task>
 

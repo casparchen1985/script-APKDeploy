@@ -72,7 +72,7 @@ APK_SUBDIR="vendor/cipherlab"
 # Git branch（全域預設）
 BRANCH="master"
 
-# 機種專屬 branch 覆寫（有需要才取消註解）
+# 機種專屬 branch 覆寫
 DEVICE_rk95p_BRANCH="CIPHERLAB_MASTER"
 
 # APK 暫存目錄：所有 APK 統一放在此平坦目錄，不分子目錄
@@ -132,7 +132,7 @@ ssh app_dev@192.168.8.17
   --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a \
   --author  Bob \
   --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
-  --device  rs38t \
+  --device  rs36s rs38t rk95u \
   --dry-run
 ```
 
@@ -262,7 +262,9 @@ toBeUploaded/
     <author>Bob</author>
     <message>SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
     <devices>
+      <device>rs36s</device>
       <device>rs38t</device>
+      <device>rk95u</device>
     </devices>
   </task>
 
@@ -284,7 +286,7 @@ toBeUploaded/
   --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a \
   --author  Bob \
   --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
-  --device  rs38t
+  --device  rs36s rs38t rk95u
 ```
 
 > **純 APK 驗證**：拿掉 `--libs` 該行即可。  

@@ -223,7 +223,7 @@ cd ~/apk_deploy
   --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a \
   --author  Caspar \
   --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
-  --device  rs38t \
+  --device  rs36s rs38t rk95u \
   --dry-run
 ```
 
@@ -242,18 +242,23 @@ Dry-run 印出**所有會執行的指令**但不動 repo，確認無誤再拿掉
 [05-20 14:30:22]   Libs ABI   : arm64-v8a  (5 個檔案)
 [05-20 14:30:22]   Author     : Caspar.Chen <Caspar.Chen@cipherlab.com.tw>
 [05-20 14:30:22]   Message    : SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104
-[05-20 14:30:22]   Devices    : rs38t
+[05-20 14:30:22]   Devices    : rs36s rs38t rk95u
 [05-20 14:30:22]   Dry-run    : true
 [05-20 14:30:22] ================================
-[05-20 14:30:22] ▶  [rs38t] 開始部署
-[05-20 14:30:22] INFO  [rs38t] git checkout master && git clean -fd && git pull
-  ...
-[05-20 14:30:25] ✔  [rs38t] 部署成功
-  ...
-[05-20 14:30:25] ====== Deploy Result ======
-[05-20 14:30:25]   總計: 1  成功: 1  跳過: 0  失敗: 0
-[05-20 14:30:25]   成功機種: rs38t
-[05-20 14:30:25]   Log: logs/Caspar-ReaderService_CipherLab-20260520_143022.log
+[05-20 14:30:22] ▶  [rs36s] 開始部署
+[05-20 14:30:22] INFO  [rs36s] git checkout master && git clean -fd && git pull
+  ... (rs36s 各步驟省略)
+[05-20 14:30:24] ✔  [rs36s] 部署成功
+[05-20 14:30:24] ▶  [rs38t] 開始部署
+  ... (rs38t 同樣流程)
+[05-20 14:30:26] ✔  [rs38t] 部署成功
+[05-20 14:30:26] ▶  [rk95u] 開始部署
+  ... (rk95u 同樣流程；branch 沿用 master)
+[05-20 14:30:28] ✔  [rk95u] 部署成功
+[05-20 14:30:28] ====== Deploy Result ======
+[05-20 14:30:28]   總計: 3  成功: 3  跳過: 0  失敗: 0
+[05-20 14:30:28]   成功機種: rs36s rs38t rk95u
+[05-20 14:30:28]   Log: logs/Caspar-ReaderService_CipherLab-20260520_143022.log
 [05-20 14:30:25] ===========================
 ```
 
@@ -356,7 +361,9 @@ Lib 驗證失敗時會列出不符檔案。可用 `--no-verify` 略過驗證。
     <author>Caspar</author>
     <message>SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104</message>
     <devices>
+      <device>rs36s</device>
       <device>rs38t</device>
+      <device>rk95u</device>
     </devices>
   </task>
 </deploy-plan>
@@ -382,7 +389,7 @@ Lib 驗證失敗時會列出不符檔案。可用 `--no-verify` 略過驗證。
   --libs    ~/apk_deploy/toBeUploaded/ReaderService_Libs/noHK/arm64-v8a \
   --author  Caspar \
   --message "SW_CLUTY-397 : [Cipherlab] Update ReaderService_CipherLab v1.3.104" \
-  --device  rs38t
+  --device  rs36s rs38t rk95u
 ```
 
 > 純 APK 驗證：拿掉 `--libs` 該行即可。  
